@@ -1,0 +1,37 @@
+# Nothing restricted is committed: data, images and ground truth stay on the cluster or with the team.
+data/
+**/data/
+scans/
+**/scans/
+raw*/
+htr/
+translations/
+readings/
+colin-notes/
+queries/
+answers/
+ground-truth/
+test-set/
+*.jpg
+*.jpeg
+*.png
+*.tif
+*.tiff
+*.jp2
+*.pdf
+*.zip
+# keep documentation figures, if any are added deliberately
+!docs/figures/*.png
+
+# secrets and local settings
+.env
+*.key
+config.local.*
+
+# Python and editors
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db

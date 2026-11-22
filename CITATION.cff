@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this code or its documentation, please cite this repository, giving the version or commit you used."
+title: "crash-2026: finding one ship in three archives, and knowing when to believe it"
+type: software
+authors:
+  - name: "MarineLives"
+    website: "https://www.marinelives.org/wiki/MarineLives"
+contact:
+  - family-names: "Greenstreet"
+    given-names: "Colin"
+    website: "https://www.linkedin.com/in/colin-greenstreet-7434b9/"
+repository-code: "https://github.com/Addaci/crash-2026"
+license: MIT
+date-released: "2026-11-22"
+keywords:
+  - "digital history"
+  - "record linkage"
+  - "High Court of Admiralty"
+  - "notarial archives"
+  - "Amsterdam"
+  - "Barbados"
+  - "CRASH 2026"
