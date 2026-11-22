@@ -23,7 +23,7 @@ In October 1656 the *Peacock* sailed from Amsterdam for Guinea and Barbados. Its
 
 The English side rests on a hand-built index of the HCA 13 depositions: about 24,000 rows, made over eight years (deponents, ships, voyages, cargoes), beside fifteen years of MarineLives transcriptions. The index is described here, not shared.
 
-The team links ships, people and cargoes across these sources, 1640 to 1680: Dutch, English and Latin, with Portuguese, Spanish and French in places. Four search methods compete on one frozen test set of known matches: exact words, fuzzy words, vectors and a graph. We report whichever wins. Then we measure what matters to a historian:
+The team links ships, people and cargoes across these sources, 1630 to 1680: Dutch, English and Latin, with Portuguese, Spanish and French in places. Four search methods compete on one frozen test set of known matches: exact words, fuzzy words, vectors and a graph. We report whichever wins. Then we measure what matters to a historian:
 
 - **recall**: how many known matches each method finds;
 - **minutes to a verdict**: how long a historian takes to accept or reject a proposed link;
