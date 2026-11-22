@@ -7,24 +7,34 @@ Code for a team at the **CRASH 2026 hackathon** (UNICORN hub, Graz, 30 November 
 ## Contents
 
 1. [The question](#the-question)
-2. [The workflow](#the-workflow)
-3. [What is in this repository, and what is not](#what-is-in-this-repository-and-what-is-not)
-4. [Layout](#layout)
-5. [Working rules](#working-rules)
-6. [Licence and citation](#licence-and-citation)
+2. [Why it matters](#why-it-matters)
+3. [The workflow](#the-workflow)
+4. [What is in this repository, and what is not](#what-is-in-this-repository-and-what-is-not)
+5. [Layout](#layout)
+6. [Team](#team)
+7. [Working rules](#working-rules)
+8. [Licence and citation](#licence-and-citation)
 
 ## The question
 
 Linked historical datasets are often wrong, and few say how often.
 
-In October 1656 the *Peacock* sailed from Amsterdam for Guinea and Barbados. Its story is split three ways: English High Court of Admiralty depositions in London, Dutch notarial deeds in Amsterdam, and the SlaveVoyages database. A historian has found it in all three. Can a machine, and how would a historian know whether to believe it?
+In October 1656 the *Peacock* sailed from Amsterdam for Guinea and Barbados. Its story is split three ways: English High Court of Admiralty depositions in London, Dutch notarial deeds in Amsterdam, and the SlaveVoyages database. Colin Greenstreet has found it in all three. Can a machine, and how would a historian know whether to believe it?
 
-The team links ships, people and cargoes across these sources, 1640 to 1680, in English, Dutch and Latin. Four search methods compete on one frozen test set of known matches: exact words, fuzzy words, vectors and a graph. We report whichever wins. Then we measure what matters to a historian:
+The English side rests on a hand-built index of the HCA 13 depositions: about 24,000 rows, made over eight years (deponents, ships, voyages, cargoes), beside fifteen years of MarineLives transcriptions. The index is described here, not shared.
+
+The team links ships, people and cargoes across these sources, 1640 to 1680: Dutch, English and Latin, with Portuguese, Spanish and French in places. Four search methods compete on one frozen test set of known matches: exact words, fuzzy words, vectors and a graph. We report whichever wins. Then we measure what matters to a historian:
 
 - **recall**: how many known matches each method finds;
 - **minutes to a verdict**: how long a historian takes to accept or reject a proposed link;
 - **wrong links caught**: how many planted false hits are spotted;
 - **silos crossed**: the share of accepted links that join records held in different archives, languages or scholarly traditions.
+
+## Why it matters
+
+- **New:** fuzzy matching is not new. Measuring what each method finds, and what it costs a historian to trust it, by kind of name and kind of text, is.
+- **Hard:** seventeenth-century hands read by machine; one island spelled Barbados, Barbade, barbadis; three kinds of record with no shared identifiers; partial voyage routes; and sources that copy each other, so agreement can be an echo.
+- **Useful at once:** historians of Barbados, the Dutch Atlantic and the slave trade can use the checked links straight away, and the method carries over to any archive with an index and machine text.
 
 ## The workflow
 
@@ -38,6 +48,8 @@ The team links ships, people and cargoes across these sources, 1640 to 1680, in 
 ```
 
 Each proposed link becomes an **evidence card**: an image crop of the lines, the machine text with the names highlighted, how each name was matched, the relation in a fixed form with its trigger words in the original language, a literal gloss, what would refute the link, and where each element came from. No persuasive prose: a fluent explanation is what produces fast wrong verdicts.
+
+**Data model.** Each link is stored as an assertion with its source and author (after STAR, from the RELEVEN project), tied to the words that support it (after the assertive edition). A name is a mention as written before it becomes a person.
 
 ## What is in this repository, and what is not
 
@@ -60,6 +72,18 @@ Each proposed link becomes an **evidence card**: an image crop of the lines, the
 
 The HTR evaluation script `htr_eval` lives in [Addaci/HCA](https://github.com/Addaci/HCA) (`tools/htr_eval/`).
 
+## Team
+
+| Role | What they own |
+|---|---|
+| Domain lead and judge (Colin Greenstreet) | The question, the test set, the planted false hits, and every verdict on a proposed link |
+| Coder | The four search methods on the frozen test set, and recall for each |
+| Knowledge-graph person | The assertion model and the graph |
+| Reader of Dutch | Relation cues, spelling variants, and reading the deeds the tools surface |
+| Two outside subject experts, joining remotely | What makes a match convincing; independent, timed verdicts on a sample of links |
+
+Team members are recruited at the hackathon. Interested? Find us in the CRASH teams room.
+
 ## Working rules
 
 Anyone changing the tools keeps these rules:
@@ -77,3 +101,5 @@ Anyone changing the tools keeps these rules:
 Code is under the MIT licence (`LICENSE`). Documentation and text are under CC BY 4.0 (`LICENSE-docs`). Archive images and records keep the terms of the archives that hold them.
 
 To cite, use GitHub's "Cite this repository" button, or `CITATION.cff`.
+
+**More:** [Generative Lives](https://generativehistory.substack.com/) · [MarineLives](https://www.marinelives.org/)
