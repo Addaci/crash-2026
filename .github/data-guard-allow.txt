@@ -1,0 +1,4 @@
+# Files the data guard lets through, one path per line, each with a reason after #.
+# Add a line only when a file truly belongs in the public repository.
+# Example:
+# docs/figures/workflow.svg   # diagram drawn by the team, no archive content
