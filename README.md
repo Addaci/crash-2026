@@ -102,4 +102,4 @@ Code is under the MIT licence (`LICENSE`). Documentation and text are under CC B
 
 To cite, use GitHub's "Cite this repository" button, or `CITATION.cff`.
 
-**More:** [Generative Lives](https://generativehistory.substack.com/) · [MarineLives](https://www.marinelives.org/)
+**More:** [Generative Lives](https://generativelives.substack.com/) · [MarineLives](https://www.marinelives.org/)
