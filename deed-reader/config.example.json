@@ -1,0 +1,37 @@
+{
+ "_about": "Settings for build_deed_data.py. Copy this file to config.local.json (never committed) and put your real paths and values there. Paths are relative to this file unless absolute.",
+ "input_root": "sample",
+ "out": "data/deed_data.js",
+ "sample": false,
+ "register": "register.csv",
+ "index_dir": "index",
+ "request_log": "request_log.jsonl",
+ "index_base_url": "",
+ "scan_dirs": [["images", "img-"]],
+ "scan_id_pattern": "DEMO\\d{11}",
+ "machine_text_dir": "machine_text",
+ "machine_text_source": "archive",
+ "htr_dir": "htr",
+ "translations_dir": "translations",
+ "model_readings_dir": "model-readings",
+ "how_found_default": "",
+ "extra_deeds": [],
+ "htr_sources": {
+  "archive": {"class": "saa_transkribus_sites", "label": "Archive HTR", "made_by": "the archive", "platform": "not stated", "corrected_default": "not stated"},
+  "own": {"class": "own_transkribus", "label": "Own HTR", "made_by": "not stated", "platform": "not stated"}
+ },
+ "ui": {
+  "title": "Deed Reader",
+  "period": "1630–1680",
+  "collection": "",
+  "collection_short": "",
+  "image_credit": "",
+  "model_name": "",
+  "storage_key": "deedreader",
+  "workdir": "deed-reader",
+  "first_deed": null,
+  "default_batch": "",
+  "help_deeds": "",
+  "variants": []
+ }
+}
