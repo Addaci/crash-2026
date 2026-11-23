@@ -49,7 +49,7 @@ The team links ships, people and cargoes across these sources, 1630 to 1680: Dut
 
 Each proposed link becomes an **evidence card**: an image crop of the lines, the machine text with the names highlighted, how each name was matched, the relation in a fixed form with its trigger words in the original language, a literal gloss, what would refute the link, and where each element came from. No persuasive prose: a fluent explanation is what produces fast wrong verdicts.
 
-**Data model.** Each link is stored as an assertion with its source and author (after STAR, from the RELEVEN project), tied to the words that support it (after the assertive edition). A name is a mention as written before it becomes a person.
+**Data model.** Each link is stored as an assertion with its source and author, after the STAR model (structured assertion record) of the [RELEVEN project](https://releven.univie.ac.at/) ([Andrews 2025](https://doi.org/10.16995/dm.16708)), tied to the words that support it, after Vogeler's [assertive edition](https://doi.org/10.1007/s42803-019-00025-5) (2019). A name is a mention as written before it becomes a person.
 
 ## What is in this repository, and what is not
 
