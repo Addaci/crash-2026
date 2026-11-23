@@ -26,7 +26,7 @@
   "collection": "",
   "collection_short": "",
   "image_credit": "",
-  "model_name": "",
+  "models": ["Model A", "Model B"],
   "storage_key": "deedreader",
   "workdir": "deed-reader",
   "first_deed": null,

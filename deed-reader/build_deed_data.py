@@ -1,7 +1,7 @@
 """Build the data file the Deed Reader opens (data/deed_data.js).
 
 Part of the Deed Reader (crash-2026). Standard library only. Reads local files only; sends no request.
-Made from Build_Deed_Reader_Data v1.2 (13 Nov 2026, Claude Opus 5.5 for Colin Greenstreet); the reading
+Made from Build_Deed_Reader_Data v1.2 (13 Nov 2026); the reading
 of index records, scans, HTR, translations and model readings is unchanged. What changed: every path and
 every collection-specific setting now comes from a settings file, and the form's display settings travel
 in the data as "ui". History in CHANGELOG.md.
@@ -372,7 +372,7 @@ def main() -> None:
             files = disk.get(s["name"], [])
             scans.append({"id": s["name"], "w": s["w"], "h": s["h"], "jp2_bytes": s["bytes"],
                           "file": files[0] if files else "", "other_files": files[1:],
-                          "machine_text": mt.get(s["name"], []), "claude_readings": cr.get(s["name"], [])})
+                          "machine_text": mt.get(s["name"], []), "model_readings": cr.get(s["name"], [])})
         deeds.append({
             "no": no, "batch": r.get("batch", ""), "date": r.get("date", ""), "type": r.get("deed_type", ""),
             "language": r.get("language", ""), "inventory": r.get("inventory", ""),

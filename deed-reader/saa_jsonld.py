@@ -1,8 +1,8 @@
 """Read one Stadsarchief Amsterdam index record (JSON-LD, as the archive's Elements API returns it).
 
 Part of the Deed Reader (crash-2026). Standard library only. Sends no request: it reads a saved file.
-parse() and aslist() are taken unchanged from Build_Barbados_Register v0.1 (11 Nov 2026,
-Claude Opus 5.5 for Colin Greenstreet); nothing else from that script is used.
+parse() and aslist() are taken unchanged from Build_Barbados_Register v0.1 (11 Nov 2026);
+nothing else from that script is used.
 Every value it returns is index level (basis A): what the archive's index says, not a reading of the deed.
 """
 import json
