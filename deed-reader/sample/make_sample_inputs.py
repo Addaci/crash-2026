@@ -202,7 +202,8 @@ def files() -> dict:
         "TRANSLATOR: the sample's author (invented)\nMODEL: Model A\nMADE: 2026-11-25\nBASIS: I\n"
         "REVIEWED_BY: none\nCONVENTIONS: one English line per HTR line; ship names in italics\n---\n"
         + "\n".join(TRANSLATION_S1) + "\n")
-    out["translation-files/en/deed1_synthesis_en_v1.0_25112026.md"] = (
+    # Capitals, so the file sorts the same on Windows (case ignored) and Linux (capitals first).
+    out["translation-files/en/DEED_0001_synthesis_en_v1.0_25112026.md"] = (
         f"DEED: 1\nLANGUAGE: en\nKIND: synthesis\nSOURCE_FILE: machine_text/{S1}.txt\nMODEL: Model A\n"
         "MADE: 2026-11-25\nBASIS: I\nREVIEWED_BY: none\n---\n" + SYNTHESIS_1 + "\n")
     out[f"model-readings/{S1}_model_reading.txt"] = MODEL_READING_S1 + "\n"

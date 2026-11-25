@@ -36,12 +36,12 @@ window.DEED_DATA = {
 "diplomatic": 1,
 "synthesis": 1,
 "files": [
-"translation-files/en/deed1_synthesis_en_v1.0_25112026.md",
+"translation-files/en/DEED_0001_synthesis_en_v1.0_25112026.md",
 "translation-files/en/DEMO00000000001_en_v1.0_25112026.txt"
 ],
 "superseded": []
 },
-"built": "2026-11-25 08:44",
+"built": "2026-11-25 09:10",
 "builder": "deed-reader/build_deed_data.py",
 "register": "register.csv",
 "htr_summary": {
@@ -260,7 +260,7 @@ window.DEED_DATA = {
 "how_found": "invented for the sample",
 "syntheses": [
 {
-"file": "translation-files/en/deed1_synthesis_en_v1.0_25112026.md",
+"file": "translation-files/en/DEED_0001_synthesis_en_v1.0_25112026.md",
 "lang": "en",
 "kind": "synthesis",
 "prov": {
