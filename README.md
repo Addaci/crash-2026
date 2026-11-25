@@ -49,7 +49,7 @@ The team links ships, people and cargoes across these sources, 1630 to 1680: Dut
 
 Each proposed link becomes an **evidence card**: an image crop of the lines, the machine text with the names highlighted, how each name was matched, the relation in a fixed form with its trigger words in the original language, a literal gloss, what would refute the link, and where each element came from. No persuasive prose: a fluent explanation is what produces fast wrong verdicts.
 
-**Data model.** Each link is stored as an assertion with its source and author (after STAR, from the RELEVEN project), tied to the words that support it (after the assertive edition). A name is a mention as written before it becomes a person.
+**Data model.** Each link is stored as an assertion with its source and author, after the STAR model (structured assertion record) of the [RELEVEN project](https://releven.univie.ac.at/) ([Andrews 2025](https://doi.org/10.16995/dm.16708)), tied to the words that support it, after Vogeler's [assertive edition](https://doi.org/10.1007/s42803-019-00025-5) (2019). A name is a mention as written before it becomes a person.
 
 ## What is in this repository, and what is not
 
@@ -74,15 +74,21 @@ The HTR evaluation script `htr_eval` lives in [Addaci/HCA](https://github.com/Ad
 
 ## Team
 
-| Role | What they own |
-|---|---|
-| Domain lead and judge (Colin Greenstreet) | The question, the test set, the planted false hits, and every verdict on a proposed link |
-| Coder | The four search methods on the frozen test set, and recall for each |
-| Knowledge-graph person | The assertion model and the graph |
-| Reader of Dutch | Relation cues, spelling variants, and reading the deeds the tools surface |
-| Two outside subject experts, joining remotely | What makes a match convincing; independent, timed verdicts on a sample of links |
+Four seats, in Graz:
 
-Team members are recruited at the hackathon. Interested? Find us in the CRASH teams room.
+| Seat | What it owns |
+|---|---|
+| Lead and judge | The question, the test set, the planted false hits, and every verdict on a proposed link |
+| Search and graph | The four search methods on the frozen test set, recall for each, and the graph that stores each link as an assertion |
+| Text and entities | Ships, masters, places and dates from machine text in Dutch, English, Spanish, Portuguese and French; reading the Dutch deeds the tools surface; checks on the machine reading |
+| Fourth seat | Dutch reader or checks, depending on what the third seat brings |
+
+Two experts, by Zoom (not participants in Graz):
+
+- **External judge:** what makes a match convincing; independent, timed verdicts on a sample of links.
+- **Dutch source expert:** practical experience of HTR and semantic search on Dutch notarial records.
+
+The lead rules on substance: what is tested and what counts as a right answer. The seats decide technique: models, units of search, measures and code. One seat is still open. Interested? Find us in the CRASH teams room.
 
 ## Working rules
 
