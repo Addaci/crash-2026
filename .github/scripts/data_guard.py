@@ -27,7 +27,7 @@ SELF = {".github/scripts/data_guard.py", ".github/data-guard-allow.txt"}  # the 
 BAD_EXT = {".jpg", ".jpeg", ".png", ".gif", ".tif", ".tiff", ".jp2", ".bmp", ".webp",
            ".pdf", ".zip", ".7z", ".tar", ".gz", ".rar", ".parquet", ".duckdb", ".sqlite", ".db"}
 OK_IMAGE_DIR = "docs/figures/"          # deliberate documentation figures only
-BAD_DIRS = re.compile(r"(^|/)(data|scans|raw[^/]*|htr|translations|readings|colin-notes|"
+BAD_DIRS = re.compile(r"(^|/)(data|scans|raw[^/]*|htr|translations|readings|colin-notes|exports|"
                       r"queries|answers|ground-truth|test-set)/")
 SECRETS = re.compile(r"(^|/)(\.env(\..*)?|.*\.key|config\.local\..*)$")
 MAX_BYTES = 1_000_000

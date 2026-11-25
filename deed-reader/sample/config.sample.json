@@ -1,0 +1,37 @@
+{
+ "_about": "Settings that build the Deed Reader's sample (invented deeds) into sample/sample_data.js. Run from the deed-reader folder: python -I build_deed_data.py --config sample/config.sample.json --replace",
+ "input_root": "inputs",
+ "out": "sample/sample_data.js",
+ "sample": true,
+ "register": "register.csv",
+ "index_dir": "index",
+ "request_log": "request_log.jsonl",
+ "index_base_url": "",
+ "scan_dirs": [["images", "img-"]],
+ "scan_id_pattern": "DEMO\\d{11}",
+ "machine_text_dir": "machine_text",
+ "machine_text_source": "archive",
+ "htr_dir": "htr-files",
+ "translations_dir": "translation-files",
+ "model_readings_dir": "model-readings",
+ "how_found_default": "invented for the sample",
+ "extra_deeds": [],
+ "htr_sources": {
+  "archive": {"class": "saa_transkribus_sites", "label": "Archive HTR (sample)", "made_by": "invented: stands in for the archive", "platform": "none", "corrected_default": "no"},
+  "own": {"class": "own_transkribus", "label": "Own HTR (sample)", "made_by": "invented", "platform": "none"}
+ },
+ "ui": {
+  "title": "Deed Reader (sample)",
+  "period": "1630–1680",
+  "collection": "Invented sample collection",
+  "collection_short": "Sample",
+  "image_credit": "",
+  "models": ["Model A", "Model B"],
+  "storage_key": "deedreader-sample",
+  "workdir": "deed-reader",
+  "first_deed": 1,
+  "default_batch": "",
+  "help_deeds": "Sample: four invented deeds on five scans, without images.",
+  "variants": [["voorbeeld", "voorbeelt"], ["proefvaart", "proefvaert"], ["holland", "hollant", "hollandt"]]
+ }
+}

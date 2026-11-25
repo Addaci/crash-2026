@@ -2,3 +2,4 @@
 # Add a line only when a file truly belongs in the public repository.
 # Example:
 # docs/figures/workflow.svg   # diagram drawn by the team, no archive content
+deed-reader/build_deed_data.py   # reads PAGE XML; names the metadata tag in code, holds no data (approved 22 Nov 2026)

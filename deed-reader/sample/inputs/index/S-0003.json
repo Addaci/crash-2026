@@ -1,0 +1,168 @@
+{
+ "@context": {
+  "note": "Invented sample record for the Deed Reader; not from any archive."
+ },
+ "@graph": [
+  {
+   "@id": "urn:sample:S-0003",
+   "@type": [
+    "rico:Record",
+    "rt:Deed"
+   ],
+   "rico:title": "Procuratie van Thomas Example op Willem Oefening (invented)",
+   "rico:normalizedDateValue": {
+    "@value": "1660-07-02"
+   },
+   "rico:hasDocumentaryFormType": {
+    "@id": "urn:sample:S-0003/type"
+   },
+   "rico:isOrWasIncludedIn": {
+    "@id": "urn:sample:inventory-2"
+   },
+   "rico:hasOrHadSubject": [
+    {
+     "@id": "urn:sample:S-0003/obs1"
+    },
+    {
+     "@id": "urn:sample:S-0003/obs2"
+    }
+   ],
+   "saa:isAssociatedWithLocation": [
+    {
+     "@id": "urn:sample:S-0003/place1"
+    },
+    {
+     "@id": "urn:sample:S-0003/place2"
+    }
+   ],
+   "saa:hasSpecification": [
+    {
+     "@id": "urn:sample:S-0003/spec1"
+    },
+    {
+     "@id": "urn:sample:S-0003/spec2"
+    },
+    {
+     "@id": "urn:sample:S-0003/spec3"
+    }
+   ]
+  },
+  {
+   "@id": "urn:sample:S-0003/type",
+   "skos:prefLabel": "Procuratie"
+  },
+  {
+   "@id": "urn:sample:inventory-2/context",
+   "http://purl.org/dc/terms/title": "2, Protocol van notaris Hendrick Demo, 1656-1680 (invented)"
+  },
+  {
+   "@id": "urn:sample:S-0003/obs1",
+   "@type": "saa:LinkedPersonObservation",
+   "memorix:order": {
+    "@value": "1"
+   },
+   "saa:relatedPersonObservation": {
+    "@id": "urn:sample:S-0003/person1"
+   },
+   "saa:relatedPersonObservationRole": {
+    "@id": "urn:sample:role-lastgever"
+   }
+  },
+  {
+   "@id": "urn:sample:S-0003/person1/context",
+   "http://purl.org/dc/terms/title": "Thomas Example"
+  },
+  {
+   "@id": "urn:sample:role-lastgever",
+   "skos:prefLabel": "Lastgever"
+  },
+  {
+   "@id": "urn:sample:S-0003/obs2",
+   "@type": "saa:LinkedPersonObservation",
+   "memorix:order": {
+    "@value": "2"
+   },
+   "saa:relatedPersonObservation": {
+    "@id": "urn:sample:S-0003/person2"
+   },
+   "saa:relatedPersonObservationRole": {
+    "@id": "urn:sample:role-gemachtigde"
+   }
+  },
+  {
+   "@id": "urn:sample:S-0003/person2/context",
+   "http://purl.org/dc/terms/title": "Willem Oefening"
+  },
+  {
+   "@id": "urn:sample:role-gemachtigde",
+   "skos:prefLabel": "Gemachtigde"
+  },
+  {
+   "@id": "urn:sample:S-0003/place1",
+   "saa:locationTextualValue": "Amsterdam"
+  },
+  {
+   "@id": "urn:sample:S-0003/place2",
+   "saa:locationTextualValue": "Bridgetown, Barbados"
+  },
+  {
+   "@id": "urn:sample:S-0003/spec1",
+   "saa:specificationType": {
+    "@id": "urn:sample:spec-taal"
+   },
+   "saa:specificationTextualValue": "Nederlands"
+  },
+  {
+   "@id": "urn:sample:spec-taal",
+   "skos:prefLabel": "taal"
+  },
+  {
+   "@id": "urn:sample:S-0003/spec2",
+   "saa:specificationType": {
+    "@id": "urn:sample:spec-taal"
+   },
+   "saa:specificationTextualValue": "Engels"
+  },
+  {
+   "@id": "urn:sample:spec-taal",
+   "skos:prefLabel": "taal"
+  },
+  {
+   "@id": "urn:sample:S-0003/spec3",
+   "saa:specificationType": {
+    "@id": "urn:sample:spec-onderwerpsomschrijving"
+   },
+   "saa:specificationTextualValue": "Invented sample deed: English signature at the foot."
+  },
+  {
+   "@id": "urn:sample:spec-onderwerpsomschrijving",
+   "skos:prefLabel": "onderwerpsomschrijving"
+  },
+  {
+   "@id": "urn:sample:S-0003/context",
+   "memorix:hasDigitalDocument": {
+    "@list": [
+     {
+      "@id": "urn:sample:S-0003/scan0"
+     }
+    ]
+   }
+  },
+  {
+   "@id": "urn:sample:S-0003/scan0",
+   "http://schema.org/name": "DEMO00000000004.jp2",
+   "http://schema.org/width": {
+    "@value": "4000"
+   },
+   "http://schema.org/height": {
+    "@value": "3000"
+   },
+   "http://schema.org/fileSize": {
+    "@value": "2500000"
+   },
+   "memorix:iiif": {
+    "@id": ""
+   }
+  }
+ ]
+}

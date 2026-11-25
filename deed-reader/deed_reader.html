@@ -1,0 +1,741 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Deed Reader</title>
+<!--
+Deed Reader 2.0 (deed-reader/deed_reader.html), 22 November 2026.
+A form for reading and transcribing deeds from their scans, beside the archive's index record,
+machine text (HTR), translations and questions to a model, with a record of every kind of help used.
+Made from form v1.3 of 13 November 2026 by an exact
+find-and-replace script; the history is in CHANGELOG.md. Code under the MIT licence (see the README).
+Data: data/deed_data.js, built by build_deed_data.py and never committed; if it is absent,
+the form opens sample/sample_data.js (invented deeds) with a banner. User guide: docs/deed-reader-user-guide.md.
+-->
+<style>
+:root{--bg:#f6f3ec;--ink:#1d1a16;--rule:#c9c2b4;--pane:#fffdf8;--accent:#7a3b1e;--muted:#6b645a;--soft:#efe9dc;--ok:#2f6b3a;--warn:#9a5b00;--sel:#f3dcc9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.4 Georgia,serif}
+header{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:6px 12px;border-bottom:1px solid var(--rule);background:var(--pane)}
+header h1{font-size:16px;margin:0;font-weight:normal}
+header .prep{font-size:12px;color:var(--muted)}
+.sp{flex:1}
+select,input[type=text],input[type=search],button,textarea.small{font:13px Georgia,serif;padding:3px 7px;border:1px solid var(--rule);background:#fff;border-radius:3px;color:var(--ink)}
+button{cursor:pointer}button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.on::after{content:" \2713"}
+button:disabled{opacity:.5;cursor:default}
+label.sl{font-size:12px;color:var(--muted)}
+html,body{height:100%}body{display:flex;flex-direction:column}
+main{display:grid;grid-template-columns:230px minmax(0,1fr) 6px var(--rw,minmax(360px,44%));flex:1;min-height:0}
+main.nolist{grid-template-columns:0 minmax(0,1fr) 6px var(--rw,minmax(360px,44%))}
+#list{grid-column:1}#imgcol{grid-column:2}#split{grid-column:3}#right{grid-column:4}
+#split{cursor:col-resize;background:var(--rule);min-height:0}#split:hover,#split.drag{background:var(--accent)}
+#right{min-width:0;overflow:hidden}
+main.nolist #list{display:none}
+#list{border-right:1px solid var(--rule);background:var(--pane);display:flex;flex-direction:column;min-height:0}
+#list .filters{padding:6px;display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--rule)}
+#list .filters select,#list .filters input{width:100%}
+#list .filters .half{width:calc(50% - 2px)}
+#deeds{overflow:auto;flex:1}
+.deed{padding:5px 8px;border-bottom:1px solid #e6e0d4;cursor:pointer;font-size:12.5px}
+.deed:hover{background:var(--soft)}
+.deed.cur{background:var(--sel)}
+.deed b{font-size:13px}
+.deed .m{color:var(--muted)}
+.deed .prog{float:right;color:var(--ok)}
+#imgcol{display:flex;flex-direction:column;min-height:0;background:#2a2622}
+.imgbar{display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;padding:5px 8px;background:var(--pane);border-bottom:1px solid var(--rule)}
+.tab{border-radius:3px 3px 0 0}
+#imgpane{overflow:auto;flex:1;position:relative}
+#imgwrap{position:relative;overflow:hidden;display:inline-block}
+#img{display:block;max-width:none;user-select:none;-webkit-user-drag:none}
+#imgmsg{color:#eee;padding:20px;display:none}
+#box{position:absolute;border:2px solid #ffb000;background:rgba(255,176,0,.12);display:none;pointer-events:none}
+#imgpane.drawing{cursor:crosshair}
+.credit{font-size:11px;color:#bbb;padding:3px 8px;background:#2a2622}
+#right{display:flex;flex-direction:column;border-left:1px solid var(--rule);background:var(--pane);min-height:0}
+.rtabs{display:flex;gap:2px;padding:5px 8px 0;border-bottom:1px solid var(--rule)}
+.rtabs button{border-bottom:0;border-radius:4px 4px 0 0}
+.rpanel{display:none;flex:1;min-height:0;overflow:auto}
+.rpanel.show{display:flex;flex-direction:column}
+.tools{display:flex;flex-wrap:wrap;gap:4px;padding:6px 8px;border-bottom:1px solid var(--rule);align-items:center}
+.tools .grp{font-size:11px;color:var(--muted);font-variant:small-caps;letter-spacing:.04em;margin-right:2px}
+.tools button{padding:2px 6px;font-size:12.5px}
+#editor{display:flex;flex:1;min-height:180px}
+#gutter{width:66px;padding:8px 4px;text-align:right;color:var(--muted);font:13px/22px "Courier New",monospace;white-space:pre;overflow:hidden;border-right:1px solid var(--rule);user-select:none}
+#ta{flex:1;border:0;resize:none;padding:8px 10px;font:16px/22px Cambria,"Segoe UI",Georgia,serif;background:transparent;color:var(--ink);outline:none;white-space:pre;overflow:auto}
+#linebar{border-top:1px solid var(--rule);padding:5px 8px;display:flex;flex-wrap:wrap;gap:4px 6px;align-items:center;background:var(--soft);font-size:12.5px}
+#linebar button{padding:2px 6px;font-size:12px}
+#askbox{display:none;border-top:1px solid var(--rule);padding:6px 8px;background:#fbf4e8;font-size:12.5px}
+#askbox input[type=text]{width:100%;margin:2px 0}
+#askbox textarea{width:100%;margin:2px 0;font:13px/1.4 Georgia,serif;padding:4px 7px;border:1px solid var(--rule);border-radius:3px;resize:vertical;overflow:hidden;min-height:44px}
+#mt{display:none;border-top:1px solid var(--rule);max-height:36%;overflow:auto;padding:6px 10px;font:12.5px/1.5 "Courier New",monospace;background:var(--soft);white-space:pre}
+#mt .h{font-family:Georgia,serif;white-space:normal;color:var(--muted);margin-bottom:4px}
+.status{padding:4px 8px;font-size:12px;color:var(--muted);border-top:1px solid var(--rule);display:flex;gap:12px;flex-wrap:wrap}
+.status .rec{color:var(--accent)}
+.sect{padding:8px 12px;border-bottom:1px solid #e6e0d4}
+.sect h3{margin:0 0 4px;font-size:12px;font-variant:small-caps;letter-spacing:.05em;color:var(--accent);font-weight:normal}
+.basis{display:inline-block;font:11px Georgia,serif;border:1px solid var(--accent);color:var(--accent);padding:0 4px;border-radius:2px;margin-left:4px}
+dl.meta{display:grid;grid-template-columns:120px 1fr;gap:2px 8px;margin:0;font-size:13px}
+dl.meta dt{color:var(--muted)}dl.meta dd{margin:0}
+.persons{font-size:12.5px;columns:2;column-gap:14px}
+.fields{display:grid;grid-template-columns:120px 1fr;gap:4px 8px;font-size:13px;align-items:center}
+.fields input{width:100%}
+textarea.notes{width:100%;min-height:110px;font:13px/1.45 Georgia,serif;border:1px solid var(--rule);padding:6px}
+table.ent{border-collapse:collapse;width:100%;font-size:12px}
+table.ent th{font-weight:normal;color:var(--muted);text-align:left;border-bottom:1px solid var(--rule);padding:2px}
+table.ent td{border-bottom:1px solid #eee;padding:1px 2px;vertical-align:top}
+table.ent input,table.ent select{width:100%;font-size:12px;padding:1px 3px}
+.q{border:1px solid var(--rule);border-radius:4px;padding:6px 8px;margin:6px 0;background:#fff;font-size:12.5px}
+.q pre{white-space:pre-wrap;margin:4px 0;font:12px/1.4 "Courier New",monospace;background:var(--soft);padding:4px}
+.q .st{float:right;font-size:11px;padding:0 5px;border-radius:2px;background:var(--soft)}
+.q textarea{width:100%;min-height:50px;font:12.5px Georgia,serif}
+.key table{border-collapse:collapse;font-size:12.5px;width:100%}
+.key td,.key th{border-bottom:1px solid #e6e0d4;padding:2px 4px;text-align:left;vertical-align:top}
+.flash{color:var(--ok)}
+.warn{color:var(--warn)}
+#help{display:none;position:fixed;top:70px;left:50%;transform:translateX(-50%);width:min(680px,94vw);max-height:80vh;overflow:auto;background:var(--pane);border:2px solid var(--accent);border-radius:6px;padding:12px 18px;z-index:10;box-shadow:0 6px 30px rgba(0,0,0,.3);font-size:13.5px}
+#help h2{font-size:16px;margin:0 0 6px;font-weight:normal}
+#help li{margin:3px 0}
+.pnote{margin:4px 0;padding:4px 6px;border:1px solid transparent;border-radius:4px}
+.pnote.cur{border-color:var(--accent);background:var(--sel)}
+.pnote h4{margin:0 0 3px;font-size:12.5px;font-weight:normal;cursor:pointer}
+textarea.pnotes{width:100%;min-height:56px;font:13px/1.45 Georgia,serif;border:1px solid var(--rule);padding:6px;background:#fff}
+table.ent th[title]{cursor:help;text-decoration:underline dotted}
+/* v1.3: HTR tab */
+.htrsrc{display:inline-block;font:12px Georgia,serif;color:#fff;padding:1px 7px;border-radius:3px;margin-right:6px}
+.htrsrc.saa_transkribus_sites{background:#1f4e79}.htrsrc.own_transkribus{background:#2f6b3a}.htrsrc.other{background:#6b645a}
+.prov{margin:6px 0 0;border:1px solid var(--rule);border-left:4px solid #1f4e79;background:#fff;padding:6px 8px;font-size:12px}
+.prov.own_transkribus{border-left-color:#2f6b3a}
+.prov dl{display:grid;grid-template-columns:118px 1fr;gap:1px 8px;margin:4px 0 0}
+.prov dt{color:var(--muted)}.prov dd{margin:0;word-break:break-word}
+.htrwarn{margin:6px 0 0;padding:4px 8px;background:#fbf4e8;border:1px solid #e5cfa6;border-radius:3px;font-size:12px}
+.htrlines{font:var(--htrfs,14px)/1.6 Cambria,"Segoe UI",Georgia,serif;padding:6px 0 10px}
+.hl{display:flex;gap:8px;padding:0 8px}
+.hl:hover{background:var(--soft)}
+.hl .n{width:34px;flex:none;text-align:right;color:var(--muted);font:12px/22px "Courier New",monospace;user-select:none}
+.hl .t{flex:1;white-space:pre-wrap}
+.hl.reg .t{color:#9a9184;font:italic 12px/22px Georgia,serif}
+.hl .fix{visibility:hidden;flex:none;font-size:11px;padding:0 5px;height:20px}
+.hl:hover .fix{visibility:visible}
+.hl .was{color:#9a9184;text-decoration:line-through;font-size:12.5px}
+.hl .who{color:var(--accent);font:11px Georgia,serif}
+.hl input{width:100%;font:14px Cambria,Georgia,serif}
+#mt .hl{padding:0}#mt .hl .fix{display:none}
+.htrbar{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:6px 12px 0}.htrbar button{padding:2px 7px;font-size:12.5px}
+.htrsrc.tr{background:#7a3b1e}.prov.tr{border-left-color:#7a3b1e}.prov.tr.rev{border-left-color:#2f6b3a}
+.pair{border-bottom:1px dotted #e6e0d4}.hl.tr .t{color:#4a3a2c}.hl.tr.empty{display:none}.tn{display:block;font:calc(var(--htrfs,14px) * .82)/1.35 Georgia,serif;color:var(--muted);margin:1px 0 3px}
+#rp-htr.wide .pair{display:grid;grid-template-columns:1fr 1fr;align-items:start}#rp-htr.wide .hl.tr.empty{display:block}
+.sopts{margin-top:5px;font-size:12.5px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center}
+.shit{padding:5px 12px;border-bottom:1px solid #eee;cursor:pointer;font-size:12.5px}.shit:hover{background:var(--soft)}
+.ssnip{font:13.5px/1.45 Cambria,Georgia,serif;margin-top:2px}.ssnip mark{background:#ffe08a;padding:0 1px}
+.slayer{font-size:11px;padding:0 5px;border-radius:2px;color:#fff;background:#6b645a}.slayer.ly-ph{background:#2f6b3a}.slayer.ly-htr{background:#1f4e79}.slayer.ly-tr,.slayer.ly-syn{background:#7a3b1e}
+.svar{font-size:11px;color:var(--warn)}.hl.hit,.syn .hit{background:#ffe9a8 !important;transition:background .4s}
+.syn{padding:4px 14px 14px;font-size:14px;line-height:1.5}.syn h4{margin:12px 0 4px;font-size:13px;font-variant:small-caps;letter-spacing:.04em;color:var(--accent);font-weight:normal}.syn p{margin:0 0 8px}
+</style></head><body>
+<header>
+ <button id="togglelist" title="Show or hide the deed list">Deeds &#9776;</button>
+ <h1><span id="formtitle">Deed Reader</span> <span id="deedtitle"></span></h1>
+ <span class="prep">Deed Reader 2.0 &middot; data built <span id="built"></span></span>
+ <span class="sp"></span>
+ <label class="sl">Transcriber <input id="who" type="text" size="9" value="" placeholder="your name"></label>
+ <button id="folderbtn" title="Save each deed as a file in the deed-reader folder (Chrome asks once)">Connect working folder</button>
+ <button id="exportbtn">Export all</button>
+ <button id="importbtn">Import&hellip;</button><input id="importfile" type="file" accept=".json" style="display:none">
+ <button id="helpbtn">How this works</button>
+</header>
+<main id="main">
+ <div id="list">
+  <div class="filters">
+   <input id="search" type="search" placeholder="Search deeds, names, text, notes&hellip;">
+   <select id="fbatch" class="half" title="Batch"></select>
+   <select id="ftier" class="half" title="Check tier"></select>
+   <select id="flang" class="half" title="Language (index)"></select>
+   <select id="ftype" class="half" title="Deed type (index)"></select>
+   <select id="fhtr" class="half" title="Machine text (HTR) on disk for this deed"><option value="">HTR: all</option><option value="yes">HTR on disk</option><option value="no">no HTR on disk</option></select>
+  </div>
+  <div id="deeds"></div>
+  <div class="status"><span id="listcount"></span></div>
+ </div>
+ <div id="imgcol">
+  <div class="imgbar">
+   <span id="scantabs"></span>
+   <span class="sp"></span>
+   <button data-view="whole" class="on">whole</button><button data-view="left">left half</button><button data-view="right">right half</button>
+   <label class="sl" style="color:#6b645a">zoom <input id="zoom" type="range" min="10" max="150" value="30"> <span id="zv">30%</span></label>
+   <button id="drawbtn" title="Then drag a box on the image round the words in doubt; the box goes with your next question to a model">Draw box</button>
+   <button id="clearbox">Clear box</button>
+  </div>
+  <div id="imgpane"><div id="imgwrap"><img id="img" alt="scan"><div id="box"></div></div><div id="imgmsg"></div></div>
+  <div class="credit" id="credit"></div>
+ </div>
+ <div id="split" title="Drag to make the image wider or narrower; double-click for the default width"></div>
+ <div id="right">
+  <div class="rtabs">
+   <button data-rt="tr" class="on">Transcribe</button><button data-rt="htr" id="htrtab" title="The machine text (HTR) of the scan open on the left, with its provenance. Read-only; opening it is recorded.">HTR</button><button data-rt="deed">Deed: index &amp; notes</button><button data-rt="ask">Ask a model <span id="qcount"></span></button><button data-rt="search" title="Search all deeds or this deed: transcriptions, HTR, translations, synthesis, notes and the index, with spelling variants">Search</button><button data-rt="key">Key &amp; conventions</button>
+  </div>
+  <div class="rpanel show" id="rp-tr">
+   <div class="tools">
+    <span class="grp">ink</span><button data-wrap="~~" title="Select the words, then click: ~~deleted~~">~~deleted~~</button><button data-wrap="\ /" title="Select the words, then click: \interlined/">\interlined/</button><button data-wrap="_|_" title="Underlined in the original: select the words, then click: _1646_">_underlined_</button><button data-ins="[margin] " title="On its own line where the marginal note sits">[margin]</button><button data-ins="[signature] ">[signature]</button><button data-ins="[mark] " title="a signer's mark">[mark]</button><button data-ins="[paraph] " title="notary's or signer's flourish">[paraph]</button><button data-ins="[blank] " title="space left blank in the deed">[blank]</button><button data-ins="[filler]" title="line filler: the clerk's stroke filling the end of a line so nothing can be added">[filler]</button>    <span class="grp">doubt</span><button data-ins="[?]" title="after a doubtful word">[?]</button><button data-ins="[illegible]">[illegible]</button>
+    <span style="flex-basis:100%;height:0"></span>
+    <span class="grp" title="Letters and signs used in both English and Dutch hands">letters</span><button data-wrap="^{|}" title="Superscript: select the letters first, e.g. A^{o}">x<sup>sup</sup></button><button data-wrap="_{|}" title="Subscript: select the letters first">x<sub>sub</sub></button><button data-ins="ſ" title="long s">ſ</button><button data-comb="&#769;" title="Acute accent, é: select the letter(s) and click, or put the cursor just after the letter">◌́ acute</button><button data-comb="&#776;" title="Diaeresis, ë: select the letter(s) and click, or put the cursor just after the letter">◌̈ diaer.</button><button data-comb="&#772;" title="Bar, suspension mark for an omitted n or m, ā: select the letter(s) and click, or put the cursor just after the letter">◌̄ bar</button><button data-comb="&#771;" title="Tilde, ã: select the letter(s) and click, or put the cursor just after the letter">◌̃ tilde</button><button data-ins="ÿ" title="y with diaeresis, as often written for ij">ÿ</button><button data-ins="ĳ" title="ij ligature, only if written as one letter">ĳ</button><button data-ins="º" title="superscript o, as in Aº (Anno)">º</button><button data-ins="ƒ" title="florin or guilder sign">ƒ</button><button data-ins="ꝑ" title="p with stroke through the descender: per or par, as in ꝑforme, ꝑcento, ꝑties" style="font-size:17px;font-weight:bold;padding:0 9px">ꝑ</button><button data-ins="ꝓ" title="p with flourish curled back over the bowl: pro" style="font-size:17px;font-weight:bold;padding:0 9px">ꝓ</button><button data-ins="ꝯ" title="con- abbreviation">ꝯ</button><button data-ins="&amp;c" title="et cetera">&amp;c</button>
+   </div>
+   <div id="linebar">
+    <b>Line <span id="curline">1</span>:</b>
+    <button data-flag="M" title="M: tick if the archive's machine transcription helped you with this line. Click again to untick. Kept with the line and shown in the line numbers.">M machine text used</button>
+    <button data-flag="C" title="C: ticked for you when you ask a model about this line from the form (the question records which model); tick it yourself if you asked a model in its chat instead.">C model consulted</button>
+    <button data-flag="G" title="G: tick if a glossary or dictionary helped you with this line.">G glossary / dictionary</button>
+    <button data-flag="X" title="X: tick if this line is NOT your own reading of the ink (you took it from the machine text or from a model). Such a line does not count as hand transcription (P-H) until you have read it in the ink.">X not read in the ink</button>
+    <button id="selent" title="Select words in the text (a name, a place, a ship, a date), then click. They become a new row in the entity table of the Deed tab, with this scan and the line where the selection starts. Choose its kind there.">Selection &rarr; entity</button>
+    <span class="sp"></span>
+    <button id="askbtn" class="primary" title="Write a question about this line for a model; choose which model in the box that opens">Ask a model about this line</button>
+   </div>
+   <div id="askbox">
+    <div><b>Question to</b> <select id="ak-model" title="Which model this question is for. It is recorded with the question, and its answers are credited to that model."></select> &middot; deed <span id="ak-deed"></span>, scan <span id="ak-scan"></span>, line <span id="ak-line"></span>: <i id="ak-text"></i></div>
+    <label class="sl">Words in doubt (select them in the line before asking, or type)</label><input id="ak-words" type="text">
+    <label class="sl">Your question (optional; the box grows as you type)</label><textarea id="ak-q" rows="2" placeholder="e.g. What is this word? Which formula is this? What does it mean?"></textarea>
+    <div id="ak-region" class="sl"></div>
+    <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap">
+     <button id="ak-copy" class="primary" title="The form cannot reach a model by itself. This puts the whole question (deed, scan file, the box on the image, the line, your words and your question) on the clipboard and keeps it in the Questions log, with the model chosen above. Then paste it into that model's chat.">Copy for the model's chat</button><button id="ak-log" title="Keeps the question in the log without copying it. Later, 'Write query file' in the Ask a model tab hands all saved questions for one model to that model in one file, and its answers come back in one answer file.">Save for a batch of questions</button><button id="ak-cancel" title="Close without saving the question">Cancel</button>
+    </div>
+    <div class="sl">Hover over any button for a short explanation.</div>
+   </div>
+   <div id="editor"><div id="gutter">1</div><textarea id="ta" spellcheck="false" placeholder="As written. One manuscript line per text line. Original spelling; abbreviations as written (A^{o}, voorn.); [?] after a doubtful word; [illegible]; ~~deleted~~; \interlined/; [margin] on its own line. Saved in this browser as you type."></textarea></div>
+   <div id="mt"></div>
+   <div class="tools" style="border-top:1px solid var(--rule);border-bottom:0">
+    <button id="showmt" title="Shows the HTR under your text, numbered, for checking line by line. The HTR tab shows it with its full provenance.">Show HTR below my text</button>
+    <button id="showcr">Show model reading (I)</button>
+    <span class="sp"></span>
+    <button id="savetxt" class="primary" title="Write this scan's transcription as a .txt with a header naming deed, scan, transcriber, date and the record of help">Save scan .txt</button>
+   </div>
+   <div class="status"><span id="lines">0 lines</span><span class="rec" id="helprec"></span><span id="saved">kept in this browser</span></div>
+  </div>
+  <div class="rpanel" id="rp-htr"></div>
+  <div class="rpanel" id="rp-deed"></div>
+  <div class="rpanel" id="rp-ask"></div>
+  <div class="rpanel" id="rp-search"></div>
+  <div class="rpanel" id="rp-key"></div>
+ </div>
+</main>
+<div id="help">
+ <h2>How this form works (2.0)</h2>
+ <ol>
+  <li><b>Pick a deed</b> on the left<span id="helpdeeds"></span>. Its scans are the tabs above the image. Use <i>left half / right half</i> for two-page openings.</li>
+  <li><b>Transcribe</b> on the right: one manuscript line per text line, spelling as written. The toolbar inserts the marks and Dutch letters.</li>
+  <li><b>Help is welcome and recorded.</b> For the line the cursor is on, tick <b>M</b> (machine text used), <b>C</b> (model consulted), <b>G</b> (glossary or dictionary), or <b>X</b> (not read in the ink). Showing the machine text is recorded with its time. A line you read in the ink is P-H, with the help recorded beside it; a line marked X is not.</li>
+  <li><b>HTR</b> (the tab beside Transcribe): the machine text of the scan on the left, where it is on disk, with who made it, by what model, when and how it was fetched. It is better than nothing for Dutch, French and other hands, and a check on your own reading; it is not a transcription (basis P-MUC). <i>Show HTR below my text</i> puts it under your text, numbered. It is read-only: <i>fix</i> (on a line, on hover) keeps a correction of a small glitch beside the original, with your name and the time; the file itself is never changed. Deeds with HTR are marked &ldquo;HTR&rdquo; in the list. <b>Translation</b>: in the HTR tab, choose <i>HTR + translation</i> (each line under its Dutch line) or <i>Synthesis (deed)</i>, and your language. Translations are a model&rsquo;s (basis I), made as files on request in a model&rsquo;s chat, and say whether they are still current. The grey bar between the image and the right-hand side can be dragged; double-click it to reset. <i>A− / A+</i> in the HTR tab change the size of the Dutch and English there only.</li>
+  <li><b>Search</b> (tab): this deed or all deeds; choose the layers (your transcriptions, HTR, translation, synthesis, notes and entities, the index); <i>spellings</i> also finds near spellings and the known variants listed in the data. Exact hits come first, then ink-based layers first. Click a hit to open the deed, scan and line.</li>
+  <li><b>Ask a model</b>: draw a box on the image round the words in doubt (<i>Draw box</i>), then <i>Ask a model about this line</i> and choose the model from the list. The question goes to the clipboard (paste it into that model&rsquo;s chat) and to the log in the <i>Ask a model</i> tab, with the model&rsquo;s name. Paste the answer back there and type your ruling. For many questions: <i>Save for a batch of questions</i>, then <i>Write query file</i> for one model; that model writes an answer file, which you import.</li>
+  <li><b>Deed: index &amp; notes</b> holds the archive's index record (basis A, never overwritten), your own readings of language, type and date, English notes on the whole deed, <b>page notes</b> (one box per scan) and the entity check table. To add an entity, select its words in the text and click <i>Selection &rarr; entity</i> in the line bar; then choose its kind.</li>
+  <li><b>Saving.</b> Everything is kept in this browser as you type. <i>Connect working folder</i> (pick the <code>deed-reader</code> folder) saves each deed as a file in <code>readings/&lt;transcriber&gt;/</code>. Without it, <i>Export all</i> and <i>Save scan .txt</i> go to Downloads: move them into <code>deed-reader/exports/</code>. These folders stay on your computer or the cluster and are never committed.</li>
+ </ol>
+ <button id="helpclose" class="primary">Close</button>
+</div>
+<script src="data/deed_data.js"></script>
+<script>if(!window.DEED_DATA) document.write('<script src="sample/sample_data.js"><\/script>');</script>
+<script>
+'use strict';
+const FORM='deed_reader.html';
+const D=window.DEED_DATA||{deeds:[]}, U=D.ui||{}; // U: settings carried in the data file (title, period, collection, credit, first deed, variants)
+const SKEY=U.storage_key||'deedreader', WORKDIR=U.workdir||'deed-reader';
+// The models that answer questions (e.g. the two Graz cluster models), named in the data, never assumed.
+// ui.models is a list of names; an older data file may give one name as ui.model_name.
+const MODELS=(Array.isArray(U.models)&&U.models.filter(Boolean).length?U.models.filter(Boolean):[U.model_name||'Model']).map(String);
+const MODEL=MODELS.length>1?'Model':MODELS[0]; // used where no one model is meant
+const DEEDS=D.deeds, BYNO={}; DEEDS.forEach(d=>BYNO[d.no]=d);
+const FIRST=(U.first_deed&&BYNO[U.first_deed])?U.first_deed:(DEEDS[0]||{}).no;
+const $=id=>document.getElementById(id);
+const p2=x=>String(x).padStart(2,'0');
+function now(){const d=new Date();return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())+' '+p2(d.getHours())+':'+p2(d.getMinutes())+':'+p2(d.getSeconds())}
+function stamp(){const d=new Date();return p2(d.getDate())+p2(d.getMonth()+1)+d.getFullYear()+'-'+p2(d.getHours())+p2(d.getMinutes())}
+function dmy(){const d=new Date();return p2(d.getDate())+p2(d.getMonth()+1)+d.getFullYear()}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function pad3(n){return String(n).padStart(3,'0')}
+
+/* ---------- state ---------- */
+let S;
+function blank(){return {schema:'deed-reader-1.0',created:now(),readers:{},ui:{}}}
+function loadState(){try{S=JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){S=null} if(!S||!S.readers) S=blank(); S.ui=S.ui||{};}
+let saveTimer=null;
+function persist(){clearTimeout(saveTimer);saveTimer=setTimeout(persistNow,300)}
+function persistNow(){clearTimeout(saveTimer);try{localStorage.setItem(SKEY,JSON.stringify(S));$('saved').textContent='kept in this browser '+now().slice(11,16)}catch(e){$('saved').innerHTML='<span class="warn">browser storage full or blocked: Export all now</span>'} folderAutosave();}
+function reader(){return ($('who').value.trim()||'anon')}
+function R(){const w=reader(); if(!S.readers[w]) S.readers[w]={deeds:{},queries:[]}; return S.readers[w]}
+function DS(no){const r=R(); const k=String(no); if(!r.deeds[k]) r.deeds[k]={seen:{},notes:'',entities:[],scans:{}}; return r.deeds[k]}
+function SC(no,sid){const d=DS(no); if(!d.scans[sid]) d.scans[sid]={text:'',lineHelp:{},events:[]}; return d.scans[sid]}
+function touch(o){o.t=now(); o.reader=reader();}
+
+/* ---------- list and filters ---------- */
+function opts(sel,label,vals,def){sel.innerHTML='<option value="">'+label+': all</option>'+vals.map(v=>'<option'+(v===def?' selected':'')+'>'+esc(v)+'</option>').join('')}
+function uniq(f){return [...new Set(DEEDS.map(f).filter(Boolean))].sort()}
+opts($('fbatch'),'batch',uniq(d=>d.batch),U.default_batch||'');
+opts($('ftier'),'tier',uniq(d=>d.check_tier));
+opts($('flang'),'lang',uniq(d=>d.language));
+opts($('ftype'),'type',uniq(d=>d.type));
+function hasHtr(d){return d.scans.some(s=>(s.machine_text||[]).length)}
+function deedHay(d){const m=d.meta||{}; let s=[d.no,d.date,d.type,d.language,d.inventory,d.notary,(m.persons||[]).map(p=>p.name).join(' '),(m.places||[]).join(' '),(m.note||[]).join(' '),d.scans.map(x=>x.id).join(' '),d.scans.map(x=>(x.machine_text||[]).map(i=>i.text).join(' ')).join(' ')].join(' ');
+ const r=S.readers[reader()]; const ds=r&&r.deeds[String(d.no)];
+ if(ds){s+=' '+ds.notes+' '+Object.values(ds.seen||{}).join(' ')+' '+(ds.entities||[]).map(e=>[e.written,e.value,e.comment].join(' ')).join(' ')+' '+Object.values(ds.scans||{}).map(x=>x.text+' '+(x.notes||'')).join(' ')}
+ return s.toLowerCase()}
+function progress(d){const r=S.readers[reader()]; const ds=r&&r.deeds[String(d.no)]; if(!ds) return ''; const n=Object.values(ds.scans||{}).filter(x=>x.text.trim()).length; const e=(ds.entities||[]).length; const parts=[]; if(n) parts.push(n+'/'+d.scans.length+' scans'); if(e) parts.push(e+' ent.'); if(ds.notes.trim()||Object.values(ds.scans||{}).some(x=>(x.notes||'').trim())) parts.push('notes'); return parts.join(' · ')}
+function renderList(){
+ const q=$('search').value.trim().toLowerCase(), b=$('fbatch').value, t=$('ftier').value, l=$('flang').value, ty=$('ftype').value, hz=$('fhtr').value;
+ const rows=DEEDS.filter(d=>(!b||d.batch===b)&&(!t||d.check_tier===t)&&(!l||d.language===l)&&(!ty||d.type===ty)&&(!hz||(hz==='yes')===hasHtr(d))&&(!q||q.split(/\s+/).every(w=>deedHay(d).includes(w))));
+ $('deeds').innerHTML=rows.map(d=>'<div class="deed'+(cur.no===d.no?' cur':'')+'" data-no="'+d.no+'"><span class="prog">'+esc(progress(d))+'</span><b>'+d.no+'</b> &middot; '+esc(d.date)+'<br>'+esc(d.type)+' <span class="m">&middot; '+esc(d.language)+' &middot; tier '+esc(d.check_tier)+' &middot; '+d.scans.length+' scan'+(d.scans.length>1?'s':'')+(d.scans.some(s=>!s.file)?' (not on disk)':'')+'</span>'+(hasHtr(d)?' <span class="htrsrc saa_transkribus_sites" style="font-size:10.5px;padding:0 4px" title="HTR on disk for '+d.scans.filter(s=>(s.machine_text||[]).length).length+' of '+d.scans.length+' scans">HTR</span>':'')+'</div>').join('');
+ $('listcount').textContent=rows.length+' of '+DEEDS.length+' deeds';
+ $('deeds').querySelectorAll('.deed').forEach(el=>el.addEventListener('click',()=>openDeed(+el.dataset.no)));
+}
+['search','fbatch','ftier','flang','ftype','fhtr'].forEach(id=>$(id).addEventListener('input',renderList));
+$('togglelist').addEventListener('click',()=>{$('main').classList.toggle('nolist')});
+
+/* ---------- deed and scan ---------- */
+const cur={no:null,sid:null,view:'whole',zoom:30,region:null};
+function deed(){return BYNO[cur.no]}
+function scan(){return deed().scans.find(s=>s.id===cur.sid)}
+function openDeed(no,sid){
+ if(!BYNO[no]) return;
+ cur.no=no; const d=deed(); cur.sid=sid&&d.scans.some(s=>s.id===sid)?sid:d.scans[0].id; cur.region=null;
+ S.ui.lastDeed=no; S.ui.lastScan=cur.sid; persist();
+ $('deedtitle').textContent=' · deed '+no+' ('+d.type+', '+d.date+')';
+ $('scantabs').innerHTML=d.scans.map((s,i)=>'<button class="tab'+(s.id===cur.sid?' on':'')+'" data-sid="'+s.id+'" title="'+esc(s.id+(s.also_in.length?' · also in deed '+s.also_in.join(', '):''))+'">'+(i+1)+': '+s.id.slice(-6)+(s.also_in.length?' *':'')+'</button>').join(' ');
+ $('scantabs').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>openScan(b.dataset.sid)));
+ renderList(); renderDeedPanel(); renderAsk(); openScan(cur.sid);
+}
+function openScan(sid){
+ cur.sid=sid; cur.region=null; S.ui.lastScan=sid; persist();
+ $('scantabs').querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.sid===sid));
+ const s=scan(), d=deed();
+ if(s.file){$('img').style.display='block';$('imgmsg').style.display='none';$('img').src=s.file;}
+ else{$('img').style.display='none';$('img').removeAttribute('src');$('imgmsg').style.display='block';$('imgmsg').textContent='Scan '+sid+' is not on disk yet (not downloaded for this batch).';}
+ $('credit').textContent='Scan '+sid+(s.file?' · '+s.file:'')+(s.w?' · archive JP2 '+s.w+' × '+s.h+' px':'')+(s.also_in.length?' · this scan is also in deed '+s.also_in.join(', ')+' (transcribe each deed\u2019s part in its own deed)':'')+(U.image_credit?' · Image: '+U.image_credit+(d.inventory?' inv. '+d.inventory:'')+'.':'');
+ drawBox(); const sc=SC(cur.no,sid);
+ $('ta').value=sc.text; prevLines=sc.text.split('\n'); $('mt').style.display='none'; askClose();
+ refreshEditor(); updateHelpButtons(); markPageNote();
+ cur.htrIdx=0; if($('rp-htr').classList.contains('show')) renderHtr(true);
+}
+/* image view */
+function applyView(){const im=$('img'); if(!im.naturalWidth) return; const w=im.naturalWidth*cur.zoom/100, h=im.naturalHeight*cur.zoom/100; im.style.width=w+'px'; im.style.height=h+'px';
+ const wrap=$('imgwrap'); if(cur.view==='whole'){wrap.style.width=w+'px';im.style.marginLeft='0'} else {wrap.style.width=(w/2)+'px'; im.style.marginLeft=cur.view==='right'?(-w/2)+'px':'0'} drawBox();}
+$('img').addEventListener('load',applyView);
+$('img').addEventListener('error',()=>{$('imgmsg').style.display='block';$('imgmsg').textContent='Could not load '+(scan()||{}).file+'. Open this form from the deed-reader folder in Chrome (the app\u2019s browser pane cannot show local images).'});
+$('zoom').addEventListener('input',e=>{cur.zoom=+e.target.value;$('zv').textContent=cur.zoom+'%';applyView()});
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{cur.view=b.dataset.view;document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('on',x===b));applyView()}));
+/* region box, in pixels of the local image file */
+let drawing=false, drag=null;
+$('drawbtn').addEventListener('click',()=>{drawing=!drawing;$('drawbtn').classList.toggle('on',drawing);$('imgpane').classList.toggle('drawing',drawing)});
+$('clearbox').addEventListener('click',()=>{cur.region=null;drawBox();askRegionText()});
+function imgPt(e){const im=$('img'), r=im.getBoundingClientRect(); return {x:Math.round(Math.max(0,Math.min(im.naturalWidth,(e.clientX-r.left)*im.naturalWidth/r.width))),y:Math.round(Math.max(0,Math.min(im.naturalHeight,(e.clientY-r.top)*im.naturalHeight/r.height)))}}
+$('imgwrap').addEventListener('mousedown',e=>{if(!drawing||!$('img').naturalWidth) return; e.preventDefault(); drag=imgPt(e);});
+window.addEventListener('mousemove',e=>{if(!drag) return; const p=imgPt(e); cur.region={x:Math.min(drag.x,p.x),y:Math.min(drag.y,p.y),w:Math.abs(p.x-drag.x),h:Math.abs(p.y-drag.y)}; drawBox();});
+window.addEventListener('mouseup',()=>{if(!drag) return; drag=null; if(cur.region&&(cur.region.w<5||cur.region.h<5)) cur.region=null; drawBox(); askRegionText(); drawing=false;$('drawbtn').classList.remove('on');$('imgpane').classList.remove('drawing');});
+function drawBox(){const b=$('box'), im=$('img'); if(!cur.region||!im.naturalWidth){b.style.display='none';return} const k=cur.zoom/100, off=cur.view==='right'?im.naturalWidth*k/2:0; b.style.display='block'; b.style.left=(cur.region.x*k-off)+'px'; b.style.top=(cur.region.y*k)+'px'; b.style.width=(cur.region.w*k)+'px'; b.style.height=(cur.region.h*k)+'px';}
+
+/* ---------- editor, line help ---------- */
+const ta=$('ta'), gut=$('gutter'); let prevLines=[''];
+function curLine(){return ta.value.slice(0,ta.selectionStart).split('\n').length}
+function refreshEditor(){const sc=SC(cur.no,cur.sid); const n=ta.value.split('\n').length; const lh=sc.lineHelp||{};
+ gut.textContent=Array.from({length:n},(_,i)=>{const f=lh[i+1]; const m=f?['M','C','G','X'].filter(k=>f[k]).join(''):''; return (m?m+' ':'')+(i+1)}).join('\n');
+ $('lines').textContent=n+' line'+(n===1?'':'s'); gut.scrollTop=ta.scrollTop; $('curline').textContent=curLine(); updateFlagButtons(); updateHelpRecord();}
+function remapHelp(oldL,newL,lh){ // keep help flags with their lines when lines are inserted or removed
+ let p=0; while(p<oldL.length&&p<newL.length&&oldL[p]===newL[p]) p++;
+ let s=0; while(s<oldL.length-p&&s<newL.length-p&&oldL[oldL.length-1-s]===newL[newL.length-1-s]) s++;
+ const oldMid=oldL.length-p-s, newMid=newL.length-p-s; if(oldMid===newMid) return lh;
+ const out={}; const add=(ln,f)=>{out[ln]=out[ln]||{};for(const k in f) if(f[k]) out[ln][k]=true};
+ for(const k in lh){const i=+k-1; let ni;
+  if(i<p) ni=i; else if(i>=oldL.length-s) ni=i+(newMid-oldMid); else ni=Math.min(i,p+Math.max(newMid,1)-1);
+  ni=Math.max(0,Math.min(ni,newL.length-1)); add(ni+1,lh[k]);}
+ return out;}
+ta.addEventListener('input',()=>{const sc=SC(cur.no,cur.sid); const nl=ta.value.split('\n'); sc.lineHelp=remapHelp(prevLines,nl,sc.lineHelp||{}); prevLines=nl; sc.text=ta.value; touch(sc); refreshEditor(); persist();});
+['keyup','click','select'].forEach(ev=>ta.addEventListener(ev,()=>{$('curline').textContent=curLine();updateFlagButtons()}));
+ta.addEventListener('scroll',()=>gut.scrollTop=ta.scrollTop);
+function updateFlagButtons(){const f=(SC(cur.no,cur.sid).lineHelp||{})[curLine()]||{}; document.querySelectorAll('[data-flag]').forEach(b=>b.classList.toggle('on',!!f[b.dataset.flag]))}
+function setFlag(line,k,v){const sc=SC(cur.no,cur.sid); sc.lineHelp=sc.lineHelp||{}; const f=sc.lineHelp[line]||{}; if(v) f[k]=true; else delete f[k]; if(Object.keys(f).length) sc.lineHelp[line]=f; else delete sc.lineHelp[line]; sc.events.push({t:now(),reader:reader(),kind:'line_flag',detail:'line '+line+' '+k+(v?' set':' cleared')}); touch(sc); refreshEditor(); persist();}
+document.querySelectorAll('[data-flag]').forEach(b=>b.addEventListener('click',()=>{const l=curLine(); const f=(SC(cur.no,cur.sid).lineHelp||{})[l]||{}; setFlag(l,b.dataset.flag,!f[b.dataset.flag]); ta.focus();}));
+function ins(s){const a=ta.selectionStart,b=ta.selectionEnd; ta.setRangeText(s,a,b,'end'); ta.focus(); ta.dispatchEvent(new Event('input'));}
+function wrap(w){const [l,r]=w==='~~'?['~~','~~']:(w.includes('|')?w.split('|'):['\\','/']); const a=ta.selectionStart,b=ta.selectionEnd; ta.setRangeText(l+ta.value.slice(a,b)+r,a,b,'end'); ta.focus(); ta.dispatchEvent(new Event('input'));}
+document.querySelectorAll('[data-ins]').forEach(x=>x.addEventListener('click',()=>ins(x.dataset.ins)));
+// Accent buttons: with letters selected, add the mark to each selected letter and keep the letters (bug fix, 11 Nov 2026: the mark used to replace the selection and fall on the letter before it); with nothing selected, add it to the letter before the cursor.
+function comb(m){const a=ta.selectionStart,b=ta.selectionEnd; if(a===b){ins(m);return} const t=ta.value.slice(a,b).replace(/(\p{L}\p{M}*)/gu,'$1'+m); ta.setRangeText(t,a,b,'select'); ta.focus(); ta.dispatchEvent(new Event('input'));}
+document.querySelectorAll('[data-comb]').forEach(x=>x.addEventListener('click',()=>comb(x.dataset.comb)));
+document.querySelectorAll('[data-wrap]').forEach(x=>x.addEventListener('click',()=>wrap(x.dataset.wrap)));
+
+/* ---------- record of help: machine text and model readings ---------- */
+// events saved before 2.0 used the kind 'claude_reading_shown'; both are counted, so old records keep their counts
+const MRS=['model_reading_shown','claude_reading_shown'];
+function mReadings(s){return s.model_readings||s.claude_readings||[]} // data built before 2.0 names the list claude_readings
+function count(sc,kind){const ks=kind==='model_reading_shown'?MRS:[kind]; return sc.events.filter(e=>ks.includes(e.kind)).length}
+function updateHelpButtons(){const s=scan(), sc=SC(cur.no,cur.sid);
+ const nm=s.machine_text.length, nc=mReadings(s).length;
+ $('showmt').disabled=!nm; $('showmt').textContent=nm?'Show HTR below my text'+(count(sc,'machine_text_shown')?' · shown '+count(sc,'machine_text_shown')+'×, recorded':''):(deed().machine_text_archive==='HTR'||deed().machine_text_archive==='GT'?'HTR: the archive has it for this volume, not yet fetched for this scan':'No HTR on disk for this scan');
+ $('htrtab').innerHTML='HTR'+(nm?' <span style="color:#1f4e79">●</span>':'');
+ $('showcr').disabled=!nc; $('showcr').textContent=nc?'Show model reading (I)'+(count(sc,'model_reading_shown')?' · shown '+count(sc,'model_reading_shown')+'×, recorded':''):'No model reading for this scan';}
+function updateHelpRecord(){const sc=SC(cur.no,cur.sid); const lh=sc.lineHelp||{}; const fl=Object.keys(lh).length; const q=R().queries.filter(x=>x.deed===cur.no&&x.scan===cur.sid).length;
+ $('helprec').textContent='help on this scan: machine text shown '+count(sc,'machine_text_shown')+'× · model readings shown '+count(sc,'model_reading_shown')+'× · questions '+q+' · lines with help or X '+fl;}
+function showPane(kind,items,title){const sc=SC(cur.no,cur.sid); sc.events.push({t:now(),reader:reader(),kind:kind,detail:items.map(i=>i.file).join('; ')}); touch(sc); persist();
+ const mt=$('mt'); mt.style.display='block'; mt.innerHTML=items.map(i=>'<div class="h"><b>'+esc(title)+'</b> · '+esc(i.file)+' <button class="hidemt">Hide</button><br>'+esc(i.header).replace(/\n/g,'<br>')+'</div>'+esc(i.text)).join('<hr>');
+ mt.querySelectorAll('.hidemt').forEach(b=>b.addEventListener('click',()=>{mt.style.display='none'})); updateHelpButtons(); updateHelpRecord();}
+$('showmt').addEventListener('click',()=>{const items=scan().machine_text; const sc=SC(cur.no,cur.sid); sc.events.push({t:now(),reader:reader(),kind:'machine_text_shown',detail:items.map(i=>i.file).join('; ')+' (below the text)'}); touch(sc); persist();
+ const mt=$('mt'); mt.style.display='block'; mt.innerHTML=items.map(i=>{const p=i.prov||{}; return '<div class="h"><span class="htrsrc '+srcClass(i)+'">'+esc(p.label||'HTR')+'</span><b>HTR, '+esc(p.basis||'P-MUC')+'</b>: not a transcription; showing it is recorded. Full provenance in the HTR tab. <button class="hidemt">Hide</button></div>'+htrLinesHtml(i,false)}).join('<hr>');
+ mt.querySelectorAll('.hidemt').forEach(b=>b.addEventListener('click',()=>{mt.style.display='none'})); updateHelpButtons(); updateHelpRecord();});
+
+/* ---------- v1.3: the HTR tab (rulings H1-H7, 13 Nov 2026) ---------- */
+function srcClass(i){return ['saa_transkribus_sites','own_transkribus'].includes(i.source)?i.source:'other'}
+function htrFixes(sc,file){return ((sc.htr_fixes||{})[file])||[]}
+function latestFix(fixes,n){let f=null; fixes.forEach(x=>{if(x.line===n&&(!f||x.t>=f.t)) f=x}); return f}
+// v1.3, 13 Nov 2026, about 13:35: views HTR / HTR + translation / Synthesis (rulings T1-T8); fix layer shared by HTR and translation lines.
+const LANGS={en:'English',pt:'Português',es:'Español',fr:'Français',de:'Deutsch'};
+function isReg(l){return /^\s*(Region\d*|TextRegion\d*)\s*$/i.test(l)}
+function srcLines(it){return String(it.text||'').split('\n').filter(l=>!isReg(l))}
+function effLines(sc,it){const fx=htrFixes(sc,it.file); return srcLines(it).map((l,i)=>{const f=latestFix(fx,i+1); return f?f.to:l})}
+function trLine(tr,n){if(!tr) return null; const k=String(n); if(tr.lines&&tr.lines[k]!=null) return {text:tr.lines[k]}; const r=(tr.ranges||[]).find(r=>n>=r.from&&n<=r.to); return r?{text:n===r.from?r.text:'',range:r}:null}
+function md(s){return esc(s).replace(/\*([^*\n]+)\*/g,'<i>$1</i>')}
+function curLang(){S.ui.lang=S.ui.lang||{}; return S.ui.lang[reader()]||'en'}
+function allLangs(){const s=new Set(Object.keys(LANGS)); DEEDS.forEach(d=>{(d.syntheses||[]).forEach(t=>s.add(t.lang)); d.scans.forEach(x=>(x.translations||[]).forEach(t=>s.add(t.lang)))}); return [...s]}
+async function sha256hex(t){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t)); return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){return null}}
+function fixedNote(f,orig){return f&&f.to!==orig?'<br><span class="was">'+esc(orig)+'</span> <span class="who">fixed by '+esc(f.reader)+', '+esc(f.t)+'</span>':''}
+function htrLinesHtml(item,editable,tr){const sc=SC(cur.no,cur.sid), fixes=htrFixes(sc,item.file), tfx=tr?htrFixes(sc,tr.file):[]; let n=0;
+ return '<div class="htrlines'+(tr?' paired':'')+'">'+String(item.text||'').split('\n').map(line=>{
+  if(isReg(line)) return '<div class="hl reg"><span class="n"></span><span class="t">'+esc(line.trim())+'</span></div>';
+  n++; const f=latestFix(fixes,n), shown=f&&f.to!==line?f.to:line;
+  const du='<div class="hl" data-file="'+esc(item.file)+'" data-n="'+n+'"><span class="n">'+n+'</span><span class="t">'+esc(shown)+fixedNote(f,line)+'</span>'+(editable&&!item.ph?'<button class="fix" title="Correct a small glitch in this HTR line. The HTR file is not changed: your correction is kept beside it, with your name and the time.">fix</button>':'')+'</div>';
+  if(!tr) return du;
+  const tl=trLine(tr,n); if(tl&&tl.range&&n!==tl.range.from) return '<div class="pair">'+du+'<div class="hl tr empty"></div></div>';
+  const orig=tl?tl.text:'', g=latestFix(tfx,n), ts=g&&g.to!==orig?g.to:orig, notes=((tr.notes||{})[String(n)])||[];
+  const te='<div class="hl tr" data-file="'+esc(tr.file)+'" data-n="'+n+'"><span class="n">'+n+'</span><span class="t">'+(tl?'<i>'+md(ts)+'</i>'+(g&&g.to!==orig?'<br><span class="was">'+md(orig)+'</span> <span class="who">fixed by '+esc(g.reader)+', '+esc(g.t)+'</span>':''):'<span class="warn">no translation for this line</span>')+notes.map(x=>'<span class="tn">'+md(x)+'</span>').join('')+'</span>'+(editable&&tl?'<button class="fix" title="Correct this line of the translation. The translation file is not changed: your correction is kept beside it, with your name and the time.">fix</button>':'')+'</div>';
+  return '<div class="pair">'+du+te+'</div>';}).join('')+'</div>';}
+function provBlock(cls,title,rows){return '<div class="prov '+cls+'"><b>'+title+'</b><dl>'+rows.filter(r=>r[1]).map(r=>'<dt>'+r[0]+'</dt><dd>'+(r[2]?r[1]:esc(r[1]))+'</dd>').join('')+'</dl></div>'}
+function trProv(t,extra){const p=t.prov||{}, rev=p.REVIEWED_BY&&!/^none$/i.test(p.REVIEWED_BY);
+ return provBlock('tr'+(rev?' rev':''),(rev?'Translation reviewed by '+esc(p.REVIEWED_BY):(p.MODEL?esc(p.MODEL)+' translation (I)':'Model translation (I)'))+' &middot; '+esc(LANGS[t.lang]||t.lang)+' &middot; '+esc(t.kind),
+  [['Translator',p.TRANSLATOR],['Made',p.MADE],['Basis',p.BASIS],['From',(p.SOURCE_KIND||'')+(p.SOURCE_FILE?': '+p.SOURCE_FILE:'')],['Reviewed by',p.REVIEWED_BY||'none'],['Pilot',p.PILOT],['Conventions',p.CONVENTIONS],['File',t.file+' (SHA-256 '+(t.sha256||'').slice(0,12)+'…)'],['State',extra,true]])}
+function setView(v){S.ui.htrView=v; persist(); renderHtr(true)}
+function renderHtr(record){const el=$('rp-htr'), d=deed(), s=scan(), items=s.machine_text||[]; const sc=SC(cur.no,cur.sid);
+ const view=S.ui.htrView||'htr', lang=curLang();
+ const bar='<div class="htrbar"><span class="sl">View</span>'+[['htr','HTR'],['pair','HTR + translation'],['syn','Synthesis (deed)']].map(v=>'<button class="hview'+(view===v[0]?' on':'')+'" data-v="'+v[0]+'">'+v[1]+'</button>').join('')+
+  ' <label class="sl">Language <select id="htrlang">'+allLangs().map(l=>'<option value="'+esc(l)+'"'+(l===lang?' selected':'')+'>'+esc(LANGS[l]||l)+'</option>').join('')+'</select></label><span class="sp"></span><span class="sl">text</span><button class="hfont" data-d="-1" title="Smaller Dutch and English text (this tab only)">A−</button><button class="hfont" data-d="1" title="Larger Dutch and English text (this tab only)">A+</button></div>';
+ const wire=()=>{el.querySelectorAll('.hfont').forEach(b=>b.addEventListener('click',()=>htrFont(+b.dataset.d))); el.querySelectorAll('.hview').forEach(b=>b.addEventListener('click',()=>setView(b.dataset.v))); const ls=$('htrlang'); if(ls) ls.addEventListener('change',()=>{S.ui.lang=S.ui.lang||{}; S.ui.lang[reader()]=ls.value; persist(); renderHtr(true)});};
+ if(view==='syn'){const syns=(d.syntheses||[]).filter(t=>t.lang===lang), t=syns[0];
+  if(record&&t){sc.events.push({t:now(),reader:reader(),kind:'translation_shown',detail:t.file}); touch(sc); persist();}
+  el.innerHTML=bar+'<div class="sect">'+(t?'<span class="htrsrc tr">'+esc(LANGS[lang]||lang)+'</span><b>Synthesis of deed '+d.no+'</b> <span class="basis">I</span> <span class="sl">a working aid, not for citation</span>'+trProv(t,'made from the HTR of '+((t.prov||{}).SOURCE_FILE||'').split(';').length+' scan(s); check each point against the diplomatic translation and the ink')+'</div><div class="syn">'+String(t.text).split(/\n\s*\n/).map(b=>/^#\s/.test(b)?'<h4>'+md(b.replace(/^#\s*/,''))+'</h4>':(/^\d+\.\s/m.test(b)?'<ol>'+b.split('\n').map(x=>'<li>'+md(x.replace(/^\d+\.\s*/,''))+'</li>').join('')+'</ol>':'<p>'+md(b).replace(/\n/g,' ')+'</p>')).join('')+'</div>'
+   :'<p>No '+esc(LANGS[lang]||lang)+' synthesis of deed '+d.no+' yet.</p><p class="sl">Translations are made as files: ask a model in its chat (&ldquo;translate deed '+d.no+' into '+esc(LANGS[lang]||lang)+'&rdquo;). They appear here once the data file has been rebuilt.</p></div>');
+  wire(); return;}
+ if(!items.length&&view==='htr'||(!items.length&&!(s.translations||[]).some(t=>t.lang===lang&&(t.prov||{}).SOURCE_KIND==='P-H'))){const a=d.machine_text_archive;
+  el.innerHTML=bar+'<div class="sect"><h3>HTR for scan '+esc(s.id)+'</h3><p>No HTR on disk for this scan.</p><p class="sl">'+(a==='HTR'?'The coverage file says the archive has HTR for inventory '+esc(d.inventory)+' on its Transkribus Site. It is not on disk.':a==='GT'?'The coverage file says inventory '+esc(d.inventory)+' has Ground Truth pages (checked by hand) on the archive’s Transkribus Site. It is not on disk.':'The coverage file lists no HTR for inventory '+esc(d.inventory)+(a&&a!=='none'?' ('+esc(a)+')':'')+'. Own HTR, when run, will appear here.')+'</p><p class="sl">Deed '+d.no+': HTR on disk for '+d.scans.filter(x=>(x.machine_text||[]).length).length+' of '+d.scans.length+' scans.</p></div>'; wire(); return;}
+ const k=Math.min(cur.htrIdx||0,Math.max(items.length-1,0)), it=items[k]||{file:'',text:''}, p=it.prov||{};
+ const trs=view==='pair'?(s.translations||[]).filter(t=>t.lang===lang):[], tr=trs[Math.min(cur.trIdx||0,Math.max(trs.length-1,0))]||null;
+ const tp=tr?(tr.prov||{}):{}, phSrc=tr&&tp.SOURCE_KIND==='P-H';
+ const dutch=phSrc?{file:'P-H '+(tp.SOURCE_READER||reader()),text:sc.text,ph:true}:it;
+ if(record){sc.events.push({t:now(),reader:reader(),kind:'machine_text_shown',detail:it.file+' (HTR tab)'}); if(tr) sc.events.push({t:now(),reader:reader(),kind:'translation_shown',detail:tr.file}); touch(sc); persist(); updateHelpButtons(); updateHelpRecord();}
+ const nf=htrFixes(sc,it.file).length;
+ let h=bar+'<div class="sect">'+(items.length>1?'<div style="margin-bottom:6px">'+items.map((x,i)=>'<button class="hsrc'+(i===k?' on':'')+'" data-i="'+i+'">'+esc((x.prov||{}).label||x.source||'HTR')+'</button>').join(' ')+'</div>':'')+
+  '<span class="htrsrc '+srcClass(it)+'">'+esc(p.label||'HTR')+'</span><b>HTR for scan '+esc(s.id)+'</b> <span class="basis">'+esc(p.basis||'P-MUC')+'</span> <span class="sl">machine text: not a transcription; read-only</span>'+
+  provBlock(srcClass(it),'Provenance',[['Made by',p.made_by],['Platform',p.platform],['Model',p.model],['Corrected by hand?',p.corrected],['Fetched or exported',p.fetched],['Route',p.route],['Basis',p.basis_note||p.basis],['Document and page',p.document],['URL',p.url],['File',it.file+(it.sha256?' (SHA-256 '+it.sha256.slice(0,12)+'…)':'')]])+
+  (s.also_in.length?'<div class="htrwarn">This page is also in deed '+s.also_in.join(', ')+'. The HTR covers the whole page, so part of it belongs to the other deed.</div>':'<div class="htrwarn">The HTR covers the whole page: it may include the end or start of a neighbouring deed.</div>');
+ if(view==='pair'){
+  if(trs.length>1) h+='<div style="margin-top:6px">'+trs.map((t,i)=>'<button class="htr-tr'+(t===tr?' on':'')+'" data-i="'+i+'">'+esc(((t.prov||{}).REVIEWED_BY&&!/^none$/i.test(t.prov.REVIEWED_BY))?'reviewed: '+t.prov.REVIEWED_BY:((t.prov||{}).MODEL||'model'))+'</button>').join(' ')+'</div>';
+  h+=tr?trProv(tr,'<span id="trstate">checking…</span>'):'<div class="htrwarn">No '+esc(LANGS[lang]||lang)+' translation of this scan yet. Ask a model in its chat (&ldquo;translate deed '+d.no+' into '+esc(LANGS[lang]||lang)+'&rdquo;); it appears here once the data file has been rebuilt.</div>';}
+ h+='<div class="sl" style="margin-top:6px">Lines numbered as the HTR gives them (region labels in grey are not counted)'+(tr?'; each translation line sits under its Dutch line, with the same number':'')+'. Hover over a line and click <i>fix</i> to correct a small glitch'+(nf?' &middot; <b>'+nf+' HTR fix'+(nf>1?'es':'')+' recorded</b>':'')+'.</div></div>'+htrLinesHtml(dutch,true,tr);
+ el.innerHTML=h; wire();
+ el.querySelectorAll('.hsrc').forEach(b=>b.addEventListener('click',()=>{cur.htrIdx=+b.dataset.i; renderHtr(true)}));
+ el.querySelectorAll('.htr-tr').forEach(b=>b.addEventListener('click',()=>{cur.trIdx=+b.dataset.i; renderHtr(true)}));
+ if(tr){(async()=>{const st=$('trstate'); if(!st) return; const c=tr.check||{}; const src=phSrc?String(sc.text).split('\n'):(tp.SOURCE_FILE===it.file?effLines(sc,it):null);
+  if(!src){st.innerHTML='<span class="warn">made from another source ('+esc(tp.SOURCE_FILE||'')+'), not the HTR shown</span>'; return}
+  const hx=await sha256hex(src.join('\n')); let msg;
+  if(hx===null) msg='<span class="warn">could not check the source fingerprint in this browser</span>';
+  else if(hx===tp.SOURCE_SHA256) msg='<span class="flash">current: made from the '+(phSrc?'transcription':'HTR')+' exactly as it now reads'+(phSrc?'':' for '+esc(reader()))+'</span>';
+  else msg='<span class="warn">out of date: the '+(phSrc?'transcription has been edited':'HTR has been fixed')+' since this translation was made, so some lines may no longer match</span>';
+  if(c.missing&&c.missing.length) msg+='<br><span class="warn">builder: no translation for lines '+c.missing.slice(0,12).join(', ')+(c.missing.length>12?'…':'')+'</span>';
+  st.innerHTML=msg;})();}
+ el.querySelectorAll('.hl .fix').forEach(b=>b.addEventListener('click',()=>{const row=b.closest('.hl'), n=+row.dataset.n, file=row.dataset.file, isTr=!!(tr&&file===tr.file);
+  const orig=isTr?(trLine(tr,n)||{text:''}).text:srcLines(it)[n-1]; const f=latestFix(htrFixes(sc,file),n); const curT=f?f.to:orig;
+  row.querySelector('.t').innerHTML='<input type="text"><div class="sl">'+(isTr?'Translation':'HTR')+' line '+n+' as in the file: <span class="was" style="text-decoration:none">'+esc(orig)+'</span></div><button class="primary sv">Keep fix</button> <button class="cn">Cancel</button>'+(f&&f.to!==orig?' <button class="rs" title="A new entry restores the file’s reading; the earlier fix stays in the record">Restore the file’s reading</button>':'');
+  const inp=row.querySelector('input'); inp.value=curT; inp.focus(); b.style.display='none';
+  const keep=to=>{if(to===curT){renderHtr(false);return} sc.htr_fixes=sc.htr_fixes||{}; (sc.htr_fixes[file]=sc.htr_fixes[file]||[]).push({line:n,from:orig,to:to,t:now(),reader:reader()}); sc.events.push({t:now(),reader:reader(),kind:isTr?'translation_fix':'htr_fix',detail:file+' line '+n+(to===orig?' restored':' fixed')}); touch(sc); persist(); renderHtr(false); updateHelpRecord();};
+  row.querySelector('.sv').addEventListener('click',()=>keep(inp.value)); inp.addEventListener('keydown',e=>{if(e.key==='Enter') keep(inp.value); if(e.key==='Escape') renderHtr(false)});
+  row.querySelector('.cn').addEventListener('click',()=>renderHtr(false)); const rs=row.querySelector('.rs'); if(rs) rs.addEventListener('click',()=>keep(orig));}));}
+/* ---------- v1.3: text size (P1) and the Search tab (Q1-Q4), 13 Nov 2026, about 14:40 ---------- */
+function applyHtrFont(){const f=S.ui.htrFont||14; $('rp-htr').style.setProperty('--htrfs',f+'px')}
+function htrFont(dlt){S.ui.htrFont=Math.max(11,Math.min(26,(S.ui.htrFont||14)+dlt)); applyHtrFont(); persist()}
+const VARIANTS=Array.isArray(U.variants)?U.variants:[]; // lists of known variant spellings, from the data
+const LAYERS=[['ph','My transcriptions (P-H)'],['htr','HTR (P-MUC)'],['tr','Translation (I)'],['syn','Synthesis (I)'],['notes','Notes and entities'],['index','Index (A)']];
+const LRANK={ph:0,htr:1,tr:2,syn:3,notes:4,index:5};
+function lev(a,b){if(Math.abs(a.length-b.length)>2) return 9; const m=a.length,n=b.length; let p=Array.from({length:n+1},(_,j)=>j); for(let i=1;i<=m;i++){const c=[i]; for(let j=1;j<=n;j++) c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1)); p=c} return p[n]}
+function fold(s){return String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')}
+function termMatchers(term,variants){const t=fold(term); const exact=[t]; if(!variants||t.length<4) return {exact,fuzzy:null};
+ const allow=t.length>=7?2:1, vs=new Set();
+ VARIANTS.forEach(g=>{if(g.some(v=>lev(t,v)<=allow||(v.startsWith(t)))) g.forEach(v=>vs.add(v))});
+ const fuzzy=w=>{if(w.length<3) return false; if(vs.has(w)) return true; if(lev(t,w)<=allow) return true; for(let L=t.length-1;L<=t.length+2;L++){if(L>=3&&L<=w.length&&lev(t,w.slice(0,L))<=Math.min(allow,1)) return true} return false};
+ return {exact,fuzzy};}
+function matchText(text,ms){const f=fold(text); let all='exact', marks=[];
+ for(const m of ms){if(m.exact.some(e=>f.includes(e))){m.exact.forEach(e=>{let i=f.indexOf(e); while(i>=0){marks.push([i,i+e.length]); i=f.indexOf(e,i+1)}}); continue}
+  if(!m.fuzzy) return null; let hit=false; const re=/[\p{L}]+/gu; let r; while((r=re.exec(f))){if(m.fuzzy(r[0])){hit=true; marks.push([r.index,r.index+r[0].length])}} if(!hit) return null; all='variant'}
+ return {kind:all,marks};}
+function snippet(text,marks){const s=String(text); if(!marks.length) return esc(s.slice(0,160)); marks.sort((a,b)=>a[0]-b[0]); const a0=Math.max(0,marks[0][0]-70), b0=Math.min(s.length,marks[0][1]+110); let out='', pos=a0;
+ marks.filter(m=>m[0]>=a0&&m[1]<=b0).forEach(m=>{if(m[0]<pos) return; out+=esc(s.slice(pos,m[0]))+'<mark>'+esc(s.slice(m[0],m[1]))+'</mark>'; pos=m[1]}); out+=esc(s.slice(pos,b0)); return (a0>0?'…':'')+out+(b0<s.length?'…':'')}
+function searchUnits(scope,layers){const out=[], deeds=scope==='deed'&&cur.no?[deed()]:DEEDS;
+ for(const d of deeds){const m=d.meta||{};
+  if(layers.index) out.push({layer:'index',d,text:[m.title,d.type,(m.persons||[]).map(p=>p.name).join('; '),(m.places||[]).join('; '),(m.note||[]).join(' ')].join(' | ')});
+  d.scans.forEach((s,si)=>{
+   if(layers.htr) (s.machine_text||[]).forEach(it=>{const sc=((S.readers[reader()]||{}).deeds||{})[String(d.no)]; const scs=sc&&sc.scans[s.id]; const fx=scs?htrFixes(scs,it.file):[]; srcLines(it).forEach((l,i)=>{const f=latestFix(fx,i+1); out.push({layer:'htr',d,s,si,n:i+1,text:f?f.to:l})})});
+   if(layers.tr) (s.translations||[]).forEach(tr=>{const n=srcLinesCount(s,tr); for(let i=1;i<=n;i++){const tl=trLine(tr,i); if(!tl||!tl.text) continue; const notes=((tr.notes||{})[String(i)]||[]).join(' '); out.push({layer:'tr',d,s,si,n:i,lang:tr.lang,text:tl.text+(notes?'  — note: '+notes:'')})}});});
+  if(layers.syn) (d.syntheses||[]).forEach(t=>String(t.text).split(/\n\s*\n/).forEach((b,bi)=>out.push({layer:'syn',d,n:bi+1,lang:t.lang,text:b.replace(/^#\s*/,'')})));
+  for(const rd of Object.keys(S.readers)){const ds=(S.readers[rd].deeds||{})[String(d.no)]; if(!ds) continue;
+   if(layers.ph) d.scans.forEach((s,si)=>{const sc=ds.scans[s.id]; if(sc&&sc.text) sc.text.split('\n').forEach((l,i)=>{if(l.trim()) out.push({layer:'ph',d,s,si,n:i+1,rd,text:l})})});
+   if(layers.notes){if(ds.notes) out.push({layer:'notes',d,rd,text:ds.notes,what:'English notes'}); d.scans.forEach((s,si)=>{const sc=ds.scans[s.id]; if(sc&&sc.notes) out.push({layer:'notes',d,s,si,rd,text:sc.notes,what:'page notes'})}); (ds.entities||[]).forEach(e=>out.push({layer:'notes',d,rd,text:[e.kind,e.written,e.value,e.comment].filter(Boolean).join(' · '),what:'entity'}));}}}
+ return out;}
+function srcLinesCount(s,tr){const it=(s.machine_text||[]).find(i=>i.file===(tr.prov||{}).SOURCE_FILE); return it?srcLines(it).length:Math.max(0,...Object.keys(tr.lines||{}).map(Number))}
+function renderSearch(){const el=$('rp-search'); const st=S.ui.search=S.ui.search||{q:'',scope:'all',variants:true,layers:{ph:true,htr:true,tr:true,syn:true,notes:true,index:false}};
+ el.innerHTML='<div class="sect"><div style="display:flex;gap:6px"><input id="sq" type="search" style="flex:1" placeholder="Words to find: a name, a place, a ship, a word" value="'+esc(st.q)+'"><button id="sgo" class="primary">Search</button></div>'+
+  '<div class="sopts"><span class="sl">Scope</span> <label><input type="radio" name="sscope" value="deed"'+(st.scope==='deed'?' checked':'')+'> this deed'+(cur.no?' ('+cur.no+')':'')+'</label> <label><input type="radio" name="sscope" value="all"'+(st.scope!=='deed'?' checked':'')+'> all '+DEEDS.length+' deeds</label>'+
+  ' &middot; <label title="Also find spellings within one letter (short words) or two letters (7 letters or more), and the known variants listed in the data"><input type="checkbox" id="svar"'+(st.variants?' checked':'')+'> spellings</label></div>'+
+  '<div class="sopts"><span class="sl">Layers</span> '+LAYERS.map(l=>'<label><input type="checkbox" class="slay" value="'+l[0]+'"'+(st.layers[l[0]]?' checked':'')+'> '+l[1]+'</label>').join(' ')+'</div>'+
+  '<div class="sl">The letters in brackets say what each layer rests on: <b>P-H</b> transcribed by hand from the ink; <b>P-MUC</b> machine text, uncorrected; <b>I</b> inference (a model’s translation or synthesis); <b>A</b> the archive’s index record only. All the codes: <a href="#" class="keylink" title="Open the Key &amp; conventions tab">Key &amp; conventions</a>.</div>'+
+  '<div class="sl">Ranked: exact before spelling variants; then my transcriptions, HTR, translation, synthesis, notes, index; then deed, scan and line. Click a hit to open it.</div></div><div id="sres"></div>';
+ el.querySelectorAll('.keylink').forEach(a=>a.addEventListener('click',e=>{e.preventDefault(); showRt('key'); $('rp-key').scrollTop=0;}));
+ const go=()=>{st.q=$('sq').value; st.scope=(el.querySelector('input[name=sscope]:checked')||{}).value||'all'; st.variants=$('svar').checked; el.querySelectorAll('.slay').forEach(c=>st.layers[c.value]=c.checked); persist(); runSearch()};
+ $('sgo').addEventListener('click',go); $('sq').addEventListener('keydown',e=>{if(e.key==='Enter') go()}); el.querySelectorAll('input[name=sscope],#svar,.slay').forEach(c=>c.addEventListener('change',go));
+ if(st.q) runSearch();}
+let lastHits=[];
+function runSearch(){const st=S.ui.search, box=$('sres'); const terms=String(st.q||'').trim().split(/\s+/).filter(Boolean); if(!terms.length){box.innerHTML=''; return}
+ const ms=terms.map(t=>termMatchers(t,st.variants)); const hits=[];
+ for(const u of searchUnits(st.scope,st.layers)){const r=matchText(u.text,ms); if(r) hits.push(Object.assign(u,{kind:r.kind,marks:r.marks}))}
+ hits.sort((a,b)=>(a.kind===b.kind?0:a.kind==='exact'?-1:1)||LRANK[a.layer]-LRANK[b.layer]||a.d.no-b.d.no||(a.si||0)-(b.si||0)||(a.n||0)-(b.n||0));
+ lastHits=hits; const by={}; hits.forEach(h=>by[h.layer]=(by[h.layer]||0)+1); const SHOW=300;
+ box.innerHTML='<div class="sect sl">'+hits.length+' hit'+(hits.length===1?'':'s')+(hits.length?' · '+LAYERS.filter(l=>by[l[0]]).map(l=>l[1].replace(/ \(.*\)/,'')+' '+by[l[0]]).join(' · '):'')+(hits.length>SHOW?' · first '+SHOW+' shown':'')+'</div>'+
+  hits.slice(0,SHOW).map((h,i)=>'<div class="shit" data-i="'+i+'"><span class="slayer ly-'+h.layer+'">'+esc(LAYERS.find(l=>l[0]===h.layer)[1].replace(/ \(.*\)/,''))+(h.rd?' · '+esc(h.rd):'')+(h.lang?' · '+esc(h.lang):'')+'</span> <b>Deed '+h.d.no+'</b>'+(h.s?' · scan '+(h.si+1)+' ('+esc(h.s.id.slice(-6))+')':'')+(h.n&&h.layer!=='syn'?' · line '+h.n:'')+(h.what?' · '+h.what:'')+(h.kind==='variant'?' <span class="svar">spelling variant</span>':'')+'<div class="ssnip">'+snippet(h.text,h.marks)+'</div></div>').join('');
+ box.querySelectorAll('.shit').forEach(el=>el.addEventListener('click',()=>jumpTo(lastHits[+el.dataset.i])));}
+function flashRow(sel){setTimeout(()=>{const r=document.querySelector(sel); if(r){r.scrollIntoView({block:'center'}); r.classList.add('hit'); setTimeout(()=>r.classList.remove('hit'),4000)}},60)}
+function jumpTo(h){const sid=h.s?h.s.id:null;
+ if(h.layer==='htr'||h.layer==='tr'||h.layer==='syn'){S.ui.htrView=h.layer==='htr'?'htr':h.layer==='tr'?'pair':'syn'; if(h.lang){S.ui.lang=S.ui.lang||{}; S.ui.lang[reader()]=h.lang}
+  const shown=$('rp-htr').classList.contains('show'); openDeed(h.d.no,sid); if(!shown) showRt('htr');
+  flashRow(h.layer==='syn'?'#rp-htr .syn > *:nth-child('+h.n+')':h.layer==='tr'?'#rp-htr .hl.tr[data-n="'+h.n+'"]':'#rp-htr .hl:not(.tr)[data-n="'+h.n+'"]'); return}
+ if(h.layer==='ph'){if(h.rd&&h.rd!==reader()){openDeed(h.d.no,sid); showRt('tr'); $('saved').innerHTML='<span class="warn">this line is in '+esc(h.rd)+'’s transcription: type '+esc(h.rd)+' in Transcriber to see it, then your own name again before writing</span>'; return}
+  openDeed(h.d.no,sid); showRt('tr'); const L=ta.value.split('\n'); let a=0; for(let i=0;i<h.n-1;i++) a+=L[i].length+1; ta.focus(); ta.setSelectionRange(a,a+(L[h.n-1]||'').length); ta.scrollTop=Math.max(0,(h.n-6)*22); $('curline').textContent=h.n; return}
+ openDeed(h.d.no,sid||undefined); showRt('deed');}
+/* the divider between image and right pane (ruling S1, 13 Nov 2026) */
+function setRightW(px){const m=$('main'), listW=m.classList.contains('nolist')?0:230, max=m.clientWidth-listW-6-300; px=Math.round(Math.max(320,Math.min(px,max))); m.style.setProperty('--rw',px+'px'); return px}
+(function(){const sp=$('split'), m=$('main');
+ sp.addEventListener('mousedown',e=>{e.preventDefault(); sp.classList.add('drag'); document.body.style.userSelect='none';
+  const mv=ev=>{const r=m.getBoundingClientRect(); setRightW(r.right-ev.clientX-3); applyView()};
+  const up=()=>{window.removeEventListener('mousemove',mv); window.removeEventListener('mouseup',up); sp.classList.remove('drag'); document.body.style.userSelect=''; S.ui.rightW=parseInt(m.style.getPropertyValue('--rw'))||null; persist(); applyView()};
+  window.addEventListener('mousemove',mv); window.addEventListener('mouseup',up);});
+ sp.addEventListener('dblclick',()=>{m.style.removeProperty('--rw'); delete S.ui.rightW; persist(); applyView()});
+ window.addEventListener('resize',()=>{if(S&&S.ui&&S.ui.rightW) setRightW(S.ui.rightW)});
+ if('ResizeObserver' in window) new ResizeObserver(()=>{$('rp-htr').classList.toggle('wide',$('right').clientWidth>=760)}).observe($('right'));})();
+function mergeFixes(a,b){const out={}; [a||{},b||{}].forEach(src=>Object.keys(src).forEach(f=>{const L=out[f]=out[f]||[]; src[f].forEach(x=>{if(!L.some(y=>y.t===x.t&&y.line===x.line&&y.to===x.to&&y.reader===x.reader)) L.push(x)})})); Object.values(out).forEach(L=>L.sort((x,y)=>x.t<y.t?-1:1)); return out}
+$('showcr').addEventListener('click',()=>showPane('model_reading_shown',mReadings(scan()),'Model reading, basis I until read in the ink. Showing it is recorded.'));
+
+/* ---------- per-scan .txt ---------- */
+function helpByLine(sc){return Object.keys(sc.lineHelp||{}).map(Number).sort((a,b)=>a-b).map(l=>l+' '+['M','C','G','X'].filter(k=>sc.lineHelp[l][k]).join('')).join('; ')||'none'}
+function scanTxt(no,sid,rd){const d=BYNO[no], s=d.scans.find(x=>x.id===sid), sc=((S.readers[rd]||{}).deeds||{})[String(no)].scans[sid];
+ const qs=((S.readers[rd]||{}).queries||[]).filter(q=>q.deed===no&&q.scan===sid);
+ const first=k=>{const ks=k==='model_reading_shown'?MRS:[k]; const e=sc.events.find(x=>ks.includes(x.kind));return e?' (first '+e.t+')':''};
+ const hdr=['# Deed reader transcription: deed no. '+no+' ('+d.type+', '+d.date+' per index)'+(U.collection?', '+U.collection:'')+(d.inventory?' inv. '+d.inventory:'')+(d.notary?', notary '+d.notary+' (coverage file)':''),
+  '# Scan: '+sid+(s.file?' (file '+s.file+')':'')+'. Also in deed(s): '+(s.also_in.join(', ')||'none')+'.',
+  '# Transcriber: '+rd+'. Saved: '+now()+'. Form: '+FORM+'. Last edit: '+(sc.t||'')+'.',
+  '# Help record for this scan: archive machine text (P-MUC) shown '+count(sc,'machine_text_shown')+'x'+first('machine_text_shown')+'; model readings shown '+count(sc,'model_reading_shown')+'x'+first('model_reading_shown')+'; questions to a model '+qs.length+(qs.length?' ('+qs.map(q=>q.id+' line '+q.line+' to '+qModel(q)).join(', ')+')':'')+'.',
+  '# Help by line (M machine text used; C model consulted; G glossary or dictionary used; X not read in the ink): '+helpByLine(sc),
+  '# Basis: lines not marked X were read in the ink by '+rd+': P-H, with any help recorded beside them. Lines marked X: P-MHC at best if taken from machine text, I if taken from a model, until read in the ink.',
+  '# Marks: [?] doubtful; [illegible]; ~~deleted~~; \\interlined/; _underlined_; [margin]; [signature]; [mark]; [paraph]; [blank]; [filler] line filler; ^{superscript}; _{subscript}; accents and long s as Unicode (combining marks follow their letter). Spelling as written; nothing normalised.',
+  '# One manuscript line per text line below this header. File belongs in '+WORKDIR+'/readings/'+rd+'/ (or exports/).'];
+ return hdr.join('\n')+'\n'+sc.text.replace(/\s+$/,'')+'\n';}
+$('savetxt').addEventListener('click',async()=>{const rd=reader(); const sc=SC(cur.no,cur.sid); const name='Deed_'+pad3(cur.no)+'_'+cur.sid+'_'+rd.replace(/[^A-Za-z0-9]+/g,'_')+'_'+dmy()+'.txt';
+ const txt=scanTxt(cur.no,cur.sid,rd); const where=await writeOut(['readings',rd],name,txt,'text/plain');
+ sc.events.push({t:now(),reader:rd,kind:'saved_txt',detail:name+' → '+where}); persist(); flashSaved(name,where);});
+function flashSaved(name,where){$('saved').innerHTML='<span class="flash">saved '+esc(name)+'</span> '+(where==='downloads'?'to Downloads: move it into deed-reader/exports/':'to '+esc(where))}
+
+/* ---------- deed panel: index (basis A), reader's fields, notes, entities ---------- */
+const KINDS=['date','quantity','person','place','ship','other'];
+const kindOrder=e=>KINDS.includes(e.kind)?KINDS.indexOf(e.kind):KINDS.length; // rows without a kind sort last (v1.1)
+function markPageNote(){document.querySelectorAll('#rp-deed .pnote').forEach(p=>p.classList.toggle('cur',p.dataset.sid===cur.sid))}
+function renderDeedPanel(){const d=deed(), m=d.meta, ds=DS(d.no); const el=$('rp-deed');
+ let h='<div class="sect"><h3>Archive index record <span class="basis">basis A</span></h3>';
+ if(!m) h+='<p class="warn">No index record on disk for this deed.</p>'; else {
+ h+='<dl class="meta"><dt>Register no.</dt><dd>'+d.no+' · batch '+esc(d.batch)+' · check tier '+esc(d.check_tier)+'</dd><dt>Title</dt><dd>'+esc(m.title)+'</dd><dt>Date (index)</dt><dd>'+esc(m.date)+'</dd><dt>Type (index)</dt><dd>'+esc(m.type)+'</dd><dt>Language (index)</dt><dd>'+esc(m.language.join('; '))+'</dd><dt>Inventory</dt><dd>'+esc(U.collection_short?U.collection_short+' ':'')+'inv. '+esc(m.inventory)+': '+esc(m.inventory_title)+'</dd><dt>Notary</dt><dd>'+(d.notary?esc(d.notary)+' <span class="sl">(coverage file)</span>':'<span class="sl">not given in the coverage file</span>')+'</dd><dt>Index note</dt><dd>'+esc(m.note.join(' | '))+'</dd><dt>Places (as indexed)</dt><dd>'+esc(m.places.join(' ; '))+'</dd>'+(Object.keys(m.other_fields).length?'<dt>Other fields</dt><dd>'+esc(JSON.stringify(m.other_fields))+'</dd>':'')+'<dt>Scans</dt><dd>'+d.scans.map(s=>esc(s.id)+(s.w?' ('+s.w+'×'+s.h+', JP2 '+(s.jp2_bytes/1e6).toFixed(1)+' MB)':'')+(s.file?'':' <span class="warn">not on disk</span>')+(s.also_in.length?' · also in deed '+s.also_in.join(', '):'')).join('<br>')+'</dd><dt>Record</dt><dd class="sl">'+esc(m.record_url)+'<br>saved as '+esc(m.index_file)+', fetched '+esc(m.fetched_utc)+'</dd></dl>';
+ h+='<h3 style="margin-top:8px">Persons as indexed ('+m.persons.length+')</h3><div class="persons">'+m.persons.map(p=>esc(p.name)+' <span class="sl">'+esc(p.role)+'</span>').join('<br>')+'</div>';}
+ h+='</div><div class="sect"><h3>As seen by '+esc(reader())+' (never overwrites the index)</h3><div class="fields">'+
+  '<label>Language(s) seen</label><input type="text" data-seen="language" placeholder="e.g. Dutch; English signatures">'+
+  '<label>Deed type seen</label><input type="text" data-seen="type" placeholder="e.g. attestatie">'+
+  '<label>Date as read</label><input type="text" data-seen="date" placeholder="as written, then dd Mon yyyy">'+'</div></div>';
+ h+='<div class="sect"><h3>English notes <span class="sl">(the whole deed)</span></h3><textarea class="notes" id="notes" placeholder="Notes in English on this deed: what it is, who, what, where. Say what rests on the ink and what on the index."></textarea></div>';
+ h+='<div class="sect"><h3>Page notes <span class="sl">(one box per scan; the scan open on the left is highlighted; click a heading to open that scan)</span></h3>'+d.scans.map((s,i)=>{const sc=ds.scans[s.id]||{}; return '<div class="pnote'+(s.id===cur.sid?' cur':'')+'" data-sid="'+s.id+'"><h4 title="Open this scan on the left"><b>'+(i+1)+': '+s.id.slice(-6)+'</b> <span class="sl">'+esc(s.id)+(sc.notes_t?' &middot; last edit '+esc(sc.notes_t)+' ('+esc(sc.notes_reader||'')+')':'')+'</span></h4><textarea class="pnotes" data-sid="'+s.id+'" placeholder="Notes on this page only, e.g. the signoffs on this scan."></textarea></div>'}).join('')+'</div>';
+ h+='<div class="sect"><h3>Entity check table <span class="sl">(dates and quantities first, rows without a kind last; hover over a heading for what goes in it)</span></h3><table class="ent"><thead><tr><th style="width:12%" title="What the words name: person, place, ship, date, quantity, or other. Choose one for every row.">kind</th><th title="Exactly as in the ink: spelling, capitals and marks as written; nothing expanded or normalised.">as written</th><th title="The standard form. For a person, the name and the role, e.g. John Dirkson Mol, master of the Charity. For a date, dd Mon yyyy, e.g. 15 Mar 1646. For a quantity, the number and unit.">value</th><th style="width:15%" title="The scan the words are on">scan</th><th style="width:6%" title="The line in your transcription of that scan">line</th><th style="width:11%" title="yes when you have checked the words against the ink">checked in ink</th><th title="Anything else: doubts, cross-references">comment</th><th></th></tr></thead><tbody id="entbody"></tbody></table><button id="addent">+ add entity</button></div>';
+ el.innerHTML=h;
+ el.querySelectorAll('[data-seen]').forEach(i=>{const k=i.dataset.seen; i.value=(ds.seen[k]||{}).v||''; i.addEventListener('input',()=>{ds.seen[k]={v:i.value,t:now(),reader:reader()}; persist();});});
+ el.querySelectorAll('textarea.pnotes').forEach(t=>{const sid=t.dataset.sid; t.value=(ds.scans[sid]||{}).notes||''; t.addEventListener('input',()=>{const sc=SC(d.no,sid); sc.notes=t.value; sc.notes_t=now(); sc.notes_reader=reader(); persist();});});
+ el.querySelectorAll('.pnote h4').forEach(x=>x.addEventListener('click',()=>openScan(x.parentNode.dataset.sid)));
+ $('notes').value=ds.notes||''; $('notes').addEventListener('input',e=>{ds.notes=e.target.value; ds.notes_t=now(); ds.notes_reader=reader(); persist();});
+ $('addent').addEventListener('click',()=>{ds.entities.push({id:'E'+Date.now(),kind:'',written:'',value:'',scan:cur.sid,line:String(curLine()),ink:'',comment:'',t:now(),reader:reader()}); persist(); renderEntities();});
+ renderEntities();}
+function renderEntities(){const d=deed(), ds=DS(d.no); const list=ds.entities.slice().sort((a,b)=>kindOrder(a)-kindOrder(b));
+ $('entbody').innerHTML=list.map(e=>'<tr data-id="'+e.id+'"><td><select data-f="kind"><option value=""'+(KINDS.includes(e.kind)?'':' selected')+'>choose\u2026</option>'+KINDS.map(k=>'<option'+(k===e.kind?' selected':'')+'>'+k+'</option>').join('')+'</select></td><td><input data-f="written" value="'+esc(e.written)+'" placeholder="as in the ink"></td><td><input data-f="value" value="'+esc(e.value)+'" placeholder="standard form'+(e.kind==='person'?', role':e.kind==='date'?': dd Mon yyyy':'')+'"></td><td><select data-f="scan">'+d.scans.map(s=>'<option value="'+s.id+'"'+(s.id===e.scan?' selected':'')+'>'+s.id.slice(-6)+'</option>').join('')+'</select></td><td><input data-f="line" value="'+esc(e.line)+'"></td><td><select data-f="ink">'+['','yes','no','unsure'].map(k=>'<option'+(k===e.ink?' selected':'')+'>'+k+'</option>').join('')+'</select></td><td><input data-f="comment" value="'+esc(e.comment)+'"></td><td><button class="delent" title="Remove this row">×</button></td></tr>').join('');
+ $('entbody').querySelectorAll('tr').forEach(tr=>{const e=ds.entities.find(x=>x.id===tr.dataset.id);
+  tr.querySelectorAll('[data-f]').forEach(i=>i.addEventListener(i.tagName==='SELECT'?'change':'input',()=>{e[i.dataset.f]=i.value; e.t=now(); e.reader=reader(); persist(); if(i.dataset.f==='kind') renderEntities();}));
+  tr.querySelector('.delent').addEventListener('click',()=>{if(!confirm('Remove this entity row? It is kept in the deed\u2019s record of removed rows.')) return; ds.removed=ds.removed||[]; ds.removed.push(Object.assign({},e,{removed_t:now()})); ds.entities=ds.entities.filter(x=>x!==e); persist(); renderEntities();});});}
+
+/* selected words to a new entity row (v1.1) */
+function selToEntity(){const a=ta.selectionStart,b=ta.selectionEnd, sel=ta.value.slice(a,b);
+ if(!sel.trim()){$('saved').innerHTML='<span class="warn">Select the words in the text first, then click Selection \u2192 entity.</span>'; ta.focus(); return}
+ let a2=a; while(a2<b&&/\s/.test(ta.value[a2])) a2++; const line=ta.value.slice(0,a2).split('\n').length;
+ const written=sel.split('\n').map(x=>x.trim()).filter(Boolean).join(' / ');
+ const ds=DS(cur.no); const e={id:'E'+Date.now(),kind:'',written:written,value:'',scan:cur.sid,line:String(line),ink:'',comment:'',t:now(),reader:reader(),from:'selection'};
+ ds.entities.push(e); persist(); renderEntities(); showRt('deed');
+ const s=document.querySelector('#entbody tr[data-id="'+e.id+'"] select[data-f="kind"]'); if(s){s.scrollIntoView({block:'center'}); s.focus();}
+ $('saved').innerHTML='<span class="flash">entity added from line '+line+': choose its kind in the Deed tab</span>';}
+$('selent').addEventListener('click',selToEntity);
+
+/* ---------- Ask a model ---------- */
+function askModel(){return MODELS.includes(S.ui.askModel)?S.ui.askModel:MODELS[0]}
+function setAskModel(m){S.ui.askModel=m; persist();}
+function modelOptions(){const m=askModel(); return MODELS.map(x=>'<option'+(x===m?' selected':'')+'>'+esc(x)+'</option>').join('')}
+function qModel(q){return q.model||'model not recorded'}
+function askRegionText(){$('ak-region').innerHTML=cur.region?'Box on the image: x '+cur.region.x+', y '+cur.region.y+', w '+cur.region.w+', h '+cur.region.h+' (pixels of the image file). It goes with this question.':'<span class="warn">No box drawn.</span> The model can still find the line, but a box (Draw box, then drag on the image) makes the crop exact.'}
+$('ak-model').addEventListener('change',e=>setAskModel(e.target.value));
+function askOpen(){$('ak-model').innerHTML=modelOptions(); const l=curLine(); const line=ta.value.split('\n')[l-1]||''; const sel=ta.value.slice(ta.selectionStart,ta.selectionEnd);
+ $('ak-deed').textContent=cur.no; $('ak-scan').textContent=cur.sid; $('ak-line').textContent=l; $('ak-text').textContent=line||'(empty line)';
+ $('ak-words').value=sel&&!sel.includes('\n')?sel:''; $('ak-q').value=''; $('askbox').style.display='block'; growQ(); askRegionText(); $('askbox').dataset.line=l;}
+function askClose(){$('askbox').style.display='none'}
+$('askbtn').addEventListener('click',askOpen); $('ak-cancel').addEventListener('click',askClose);
+function growQ(){const q=$('ak-q'); q.style.height='auto'; q.style.height=(q.scrollHeight+2)+'px';}
+$('ak-q').addEventListener('input',growQ);
+function queryText(q){const d=BYNO[q.deed]; return ['DEED READER QUERY '+q.id+' ('+q.reader+', '+q.t+')'+(q.model?' for '+q.model:''),
+ 'Deed '+q.deed+' ('+d.type+', '+d.date+' per index)'+(U.collection_short?', '+U.collection_short:'')+' inv. '+d.inventory+(d.notary?', notary '+d.notary:'')+', language (index) '+d.language,
+ 'Scan '+q.scan+': '+WORKDIR+'/'+q.scan_file+(q.img_w?' ('+q.img_w+' × '+q.img_h+' px)':''),
+ 'Region: '+(q.region?'x '+q.region.x+', y '+q.region.y+', w '+q.region.w+', h '+q.region.h+' (pixels of that file)':'none drawn; find the line on the scan'),
+ 'Line '+q.line+' as typed: "'+q.line_text+'"',
+ 'Words in doubt: '+(q.words?'"'+q.words+'"':'(not given: the whole line)'),
+ 'Question: '+(q.question||'What does it say, and what does it mean?'),
+ 'Answer with: candidate readings, each graded (Strong / Moderate / Weak) with its reason; the formula the passage seems to follow; a short definition (basis R unless a dictionary entry is opened, then D with its URL); C17th legal, geographic, commodity, measure or money terms as relevant; how the letters in doubt are formed in this hand, and where the same form recurs. Do not settle the reading: the transcriber reads the ink.'].join('\n')}
+function makeQuery(){const l=+$('askbox').dataset.line, s=scan(), im=$('img');
+ const q={id:'Q-'+reader().replace(/[^A-Za-z0-9]+/g,'')+'-'+stamp()+'-'+Math.random().toString(36).slice(2,5),t:now(),reader:reader(),deed:cur.no,scan:cur.sid,scan_file:s.file,img_w:im.naturalWidth||0,img_h:im.naturalHeight||0,
+  model:askModel(),line:l,line_text:ta.value.split('\n')[l-1]||'',words:$('ak-words').value.trim(),question:$('ak-q').value.trim(),region:cur.region?Object.assign({},cur.region):null,status:'open',answers:[],ruling:null};
+ q.text=queryText(q); R().queries.push(q); setFlag(l,'C',true); const sc=SC(cur.no,cur.sid); sc.events.push({t:now(),reader:reader(),kind:'query',detail:q.id+' line '+l+' to '+q.model}); persist(); askClose(); renderAsk(); return q;}
+async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){const x=document.createElement('textarea');x.value=t;document.body.appendChild(x);x.select();let ok=false;try{ok=document.execCommand('copy')}catch(_){}x.remove();return ok}}
+$('ak-copy').addEventListener('click',async()=>{const q=makeQuery(); const ok=await copyText(q.text); q.copied=ok?now():null; if(ok) q.status='asked'; persist(); renderAsk(); $('saved').innerHTML=ok?'<span class="flash">question '+esc(q.id)+' copied: paste it into the chat of '+esc(q.model)+'</span>':'<span class="warn">could not copy: open the Ask a model tab and copy the question from there</span>';});
+$('ak-log').addEventListener('click',()=>{const q=makeQuery(); $('saved').innerHTML='<span class="flash">question '+esc(q.id)+' logged for the next query file</span>';});
+let askFilter='this deed';
+function renderAsk(){const r=R(); const qs=r.queries.filter(q=>askFilter==='all'||(askFilter==='open'?['open','sent','asked'].includes(q.status):q.deed===cur.no));
+ const nOpen=openFor(askModel()).length; $('qcount').textContent=r.queries.length?'('+r.queries.length+')':'';
+ let h='<div class="sect"><h3>Questions to a model · '+esc(reader())+'</h3>Show: '+['this deed','open','all'].map(f=>'<button class="af'+(f===askFilter?' on':'')+'" data-f="'+f+'">'+f+'</button>').join(' ')+
+  '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><label class="sl">Model <select id="askmodel" title="The model for the next question and for the query file">'+modelOptions()+'</select></label><button id="writeq" class="primary"'+(nOpen?'':' disabled')+'>Write query file for this model ('+nOpen+' not yet sent)</button><button id="impa">Import answer file&hellip;</button><input id="impafile" type="file" accept=".json" style="display:none"></div>'+
+  '<p class="sl">Single question: it is already on your clipboard; paste it into that model\u2019s chat, then paste the answer into its box below. Each question and answer names its model. Many questions: choose the model, <i>Write query file</i>, then ask that model to read it from <code>queries/</code> and write an answer file into <code>answers/</code>; import that here.</p></div><div class="sect">';
+ h+=qs.length?qs.slice().reverse().map(q=>'<div class="q" data-id="'+q.id+'"><span class="st">'+esc(q.status)+'</span><b>'+esc(q.id)+'</b> · '+esc(qModel(q))+' · deed '+q.deed+', scan '+esc(q.scan.slice(-6))+', line '+q.line+' <button class="goq">go to line</button> <button class="cpq">copy again</button><pre>'+esc(q.text)+'</pre>'+
+  (q.answers||[]).map(a=>'<div><b>Answer</b> <span class="basis">'+esc(a.basis||'R')+'</span> <span class="sl">'+esc(a.by||'')+' · '+esc(a.t||'')+' · '+esc(a.source||'')+'</span><pre>'+esc(a.text)+(a.candidates&&a.candidates.length?'\n\nCandidates:\n'+a.candidates.map(c=>'- '+c.reading+' ('+(c.grade||'?')+'): '+(c.reason||'')).join('\n'):'')+(a.sources&&a.sources.length?'\n\nSources: '+a.sources.join(' ; '):'')+'</pre></div>').join('')+
+  '<label class="sl">Paste the answer of '+esc(qModel(q))+' (clipboard route)</label><textarea class="pa"></textarea><button class="savea">Add answer</button>'+
+  '<br><label class="sl">Your ruling, from the ink</label><textarea class="ru">'+esc(q.ruling?q.ruling.text:'')+'</textarea><button class="saver">Record ruling</button>'+(q.ruling?' <span class="sl">ruled '+esc(q.ruling.t)+'</span>':'')+'</div>').join(''):'<p class="sl">No questions yet for this view.</p>';
+ h+='</div>'; $('rp-ask').innerHTML=h;
+ $('rp-ask').querySelectorAll('.af').forEach(b=>b.addEventListener('click',()=>{askFilter=b.dataset.f;renderAsk()}));
+ $('askmodel').addEventListener('change',e=>{setAskModel(e.target.value); renderAsk();});
+ $('writeq').addEventListener('click',writeQueryFile);
+ $('impa').addEventListener('click',()=>$('impafile').click()); $('impafile').addEventListener('change',e=>{const f=e.target.files[0]; if(f) f.text().then(t=>importAnswers(t,f.name)); e.target.value='';});
+ $('rp-ask').querySelectorAll('.q').forEach(el=>{const q=r.queries.find(x=>x.id===el.dataset.id);
+  el.querySelector('.goq').addEventListener('click',()=>{openDeed(q.deed,q.scan); showRt('tr'); const ls=ta.value.split('\n'); let pos=0; for(let i=0;i<q.line-1&&i<ls.length;i++) pos+=ls[i].length+1; ta.focus(); ta.setSelectionRange(pos,pos); if(q.region){cur.region=Object.assign({},q.region); drawBox();} refreshEditor();});
+  el.querySelector('.cpq').addEventListener('click',async()=>{await copyText(q.text);});
+  el.querySelector('.savea').addEventListener('click',()=>{const t=el.querySelector('.pa').value.trim(); if(!t) return; q.answers.push({text:t,basis:'R',by:qModel(q)+' (pasted by '+reader()+')',t:now(),source:'pasted'}); if(q.status!=='ruled') q.status='answered'; persist(); renderAsk();});
+  el.querySelector('.saver').addEventListener('click',()=>{const t=el.querySelector('.ru').value.trim(); if(!t) return; if(q.ruling) {q.rulings_before=q.rulings_before||[]; q.rulings_before.push(q.ruling);} q.ruling={text:t,t:now(),reader:reader()}; q.status='ruled'; persist(); renderAsk();});});}
+// open questions for one model; a question saved before models were recorded goes with whichever model is chosen
+function openFor(m){return R().queries.filter(q=>q.status==='open'&&(!q.model||q.model===m))}
+async function writeQueryFile(){const m=askModel(); const open=openFor(m); if(!open.length) return;
+ const name='Queries_'+reader().replace(/[^A-Za-z0-9]+/g,'_')+'_'+m.replace(/[^A-Za-z0-9.]+/g,'-')+'_'+stamp()+'.json';
+ const file={format:'deed-reader-queries-1',form:FORM,reader:reader(),model:m,written:now(),working_folder:WORKDIR,
+  instructions:'For each query: crop the scan file at the region given (pixels of that file), and answer as the query text says. Write the answers as an answer file into answers/ with the same name as this file but Answers_ in place of Queries_.',
+  answer_file_format:{format:'deed-reader-answers-1',by:'model and level',written:'YYYY-MM-DD HH:MM',answers:[{query_id:'Q-…',text:'the answer, as prose',basis:'R | D | I',sources:['URL of any dictionary entry opened'],candidates:[{reading:'…',grade:'Strong | Moderate | Weak',reason:'…'}]}]},
+  queries:open.map(q=>{const c=Object.assign({},q); delete c.answers; return c})};
+ const where=await writeOut(['queries'],name,JSON.stringify(file,null,1),'application/json');
+ open.forEach(q=>{q.status='sent'; q.model=q.model||m; q.sent={t:now(),file:name,model:m}}); persist(); renderAsk(); flashSaved(name,where);}
+function importAnswers(txt,fname){let a; try{a=JSON.parse(txt)}catch(e){alert('Not a JSON file.');return}
+ if(a.format!=='deed-reader-answers-1'||!Array.isArray(a.answers)){alert('Not a deed-reader answer file (format deed-reader-answers-1).');return}
+ let n=0, miss=[]; Object.values(S.readers).forEach(rr=>rr.queries.forEach(q=>{a.answers.filter(x=>x.query_id===q.id).forEach(x=>{if((q.answers||[]).some(y=>y.source===fname&&y.text===x.text)) return; q.answers.push({text:x.text||'',basis:x.basis||'R',sources:x.sources||[],candidates:x.candidates||[],by:a.by||'',t:a.written||now(),source:fname,imported:now()}); if(q.status!=='ruled') q.status='answered'; n++; const sc=SC(q.deed,q.scan); sc.events.push({t:now(),reader:reader(),kind:'answer_imported',detail:q.id+' from '+fname});});}));
+ a.answers.forEach(x=>{if(!Object.values(S.readers).some(rr=>rr.queries.some(q=>q.id===x.query_id))) miss.push(x.query_id)});
+ persist(); renderAsk(); alert(n+' answer(s) imported from '+fname+(miss.length?'. No matching question for: '+miss.join(', '):''));}
+
+/* ---------- tabs ---------- */
+function showRt(k){document.querySelectorAll('[data-rt]').forEach(b=>b.classList.toggle('on',b.dataset.rt===k)); document.querySelectorAll('.rpanel').forEach(p=>p.classList.toggle('show',p.id==='rp-'+k)); if(k==='ask') renderAsk(); if(k==='htr') renderHtr(true); if(k==='search') renderSearch();}
+document.querySelectorAll('[data-rt]').forEach(b=>b.addEventListener('click',()=>showRt(b.dataset.rt)));
+
+/* ---------- key and conventions ---------- */
+$('rp-key').innerHTML='<div class="sect key"><h3>Basis: what a statement rests on</h3><table>'+
+ [['P-H','primary text transcribed by hand from the ink','a line you read in the ink, with any help recorded beside it'],['P-MHC','machine text, corrected by hand','an entity checked in the ink against machine text'],['P-MUC','machine text, uncorrected','the archive\u2019s HTR (Transkribus Sites), shown on request'],['I','inference','A model\u2019s reading of an image is I until the transcriber reads the ink; inferences are labelled with whose they are: '+esc(MODEL)+' inference, transcriber inference, or shared inference'],['A','abstract or catalogue description only','the archive\u2019s index record and note (Deed tab)'],['D','dictionary entry read in full','a WNT or other dictionary entry a model opened, with its URL'],['R','recollection (training knowledge), unchecked','a model\u2019s answers unless it opened a source'],['S, Q, B, N, X','secondary work; quoted primary text; bibliographic record; snippet (a lead, never evidence); text pasted by the researcher','as they arise']].map(r=>'<tr><td><b>'+r[0]+'</b></td><td>'+r[1]+'</td><td>'+r[2]+'</td></tr>').join('')+'</table>'+
+ '<h3 style="margin-top:8px">Confidence</h3><p><b>Strong</b>: direct attestation in the primary text, or confirmed by independent sources. <b>Moderate</b>: inferred from patterns, or one source only. <b>Weak</b>: argument from silence, thin evidence, or resting on recollection. The basis of each grade is stated, not just the grade.</p>'+
+ '<h3>Check tier</h3><p><b>Tier 1</b>: in English; the transcriber reads the ink. <b>Tier 2</b>: Dutch, with the archive\u2019s machine text as a second reading. <b>Tier 3</b>: Dutch, no machine text; least secure.</p>'+
+ '<h3>Help by line (shown in the gutter)</h3><table><tr><td><b>M</b></td><td>machine text used for this line</td></tr><tr><td><b>C</b></td><td>a model consulted on this line (set when you ask from the form; the question names the model)</td></tr><tr><td><b>G</b></td><td>glossary or dictionary used</td></tr><tr><td><b>X</b></td><td>not read in the ink: from machine text (P-MHC at best) or a model (I)</td></tr></table>'+
+ '<h3 style="margin-top:8px">Transcription conventions (v1.0, 11 Nov 2026)</h3><ul><li>One manuscript line per text line; spelling, capitals and punctuation as written; nothing normalised; expansions belong in notes, not in the text.</li><li>[?] after a doubtful word; [illegible]; ~~deleted~~; \\interlined/; _underlined_ (underlined in the original; subscript keeps its braces, _{x}); [margin] on its own line where the note sits; [signature], [mark], [paraph], [blank].</li><li>Line fillers are recorded, as [filler] where the stroke stands; a plain dash is kept for the clerk’s own punctuation (ruling of 11 Nov 2026).</li><li>Superscript ^{o}, subscript _{x}; long s ſ, ÿ and ĳ only where written so; combining accents and the suspension bar follow their letter.</li><li>A scan shared by two deeds is transcribed in each deed for that deed\u2019s part.</li><li>Not yet decided (to settle with use): insertion marks, u/v and i/j.</li></ul>'+
+ '<h3>Files</h3><ul><li>Connected folder: <code>readings/&lt;transcriber&gt;/Deed_NNN_&lt;transcriber&gt;.json</code> (written as you work), <code>.txt</code> per scan on <i>Save scan .txt</i>, <code>queries/</code> and <code>answers/</code>.</li><li>Not connected: files go to Downloads; move them into <code>deed-reader/exports/</code>.</li><li>Export all: one dated JSON (for a model or a script) and Markdown (for you). Import merges: the newer entry wins; nothing is deleted.</li></ul></div>';
+
+/* ---------- working folder (File System Access), IndexedDB for the handle ---------- */
+let dirH=null;
+function idb(){return new Promise((res,rej)=>{const o=indexedDB.open('deedreader',1);o.onupgradeneeded=()=>o.result.createObjectStore('h');o.onsuccess=()=>res(o.result);o.onerror=()=>rej(o.error)})}
+async function idbGet(k){const db=await idb();return new Promise(res=>{const r=db.transaction('h').objectStore('h').get(k);r.onsuccess=()=>res(r.result);r.onerror=()=>res(null)})}
+async function idbSet(k,v){const db=await idb();return new Promise(res=>{const t=db.transaction('h','readwrite');t.objectStore('h').put(v,k);t.oncomplete=()=>res(true);t.onerror=()=>res(false)})}
+function folderLabel(){const b=$('folderbtn'); if(!('showDirectoryPicker' in window)){b.textContent='Folder saving not available here';b.disabled=true;return} b.textContent=dirH?'Folder: '+dirH.name+' \u2713':'Connect working folder';}
+async function connectFolder(){try{
+ if(dirH&&(await dirH.requestPermission({mode:'readwrite'}))==='granted'){folderLabel();return}
+ const h=await window.showDirectoryPicker({id:'deedreader',mode:'readwrite'});
+ let ok=false; try{await (await h.getDirectoryHandle('data')).getFileHandle('deed_data.js');ok=true}catch(e){}
+ if(!ok&&!confirm('This folder has no data/deed_data.js, so it may not be the deed-reader folder. Use it anyway?')) return;
+ dirH=h; await idbSet('dir',h); folderLabel(); persistNow();}catch(e){if(e.name!=='AbortError') alert('Folder not connected: '+e.message)}}
+$('folderbtn').addEventListener('click',connectFolder);
+(async()=>{try{const h=await idbGet('dir'); if(h&&(await h.queryPermission({mode:'readwrite'}))==='granted') dirH=h; else if(h){dirH=null; $('folderbtn').textContent='Reconnect folder ('+h.name+')';return}}catch(e){} folderLabel();})();
+async function writeOut(path,name,content,type){
+ if(dirH){try{let d=dirH; for(const p of path) d=await d.getDirectoryHandle(p.replace(/[^A-Za-z0-9_-]+/g,'_'),{create:true}); const f=await d.getFileHandle(name,{create:true}); const w=await f.createWritable(); await w.write(content); await w.close(); return path.join('/')+'/'+name}catch(e){console.warn('folder write failed',e)}}
+ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type:type+';charset=utf-8'})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); return 'downloads';}
+let folderTimer=null;
+function folderAutosave(){if(!dirH||!cur.no) return; clearTimeout(folderTimer); const no=cur.no, rd=reader(); folderTimer=setTimeout(async()=>{const where=await writeOut(['readings',rd],'Deed_'+pad3(no)+'_'+rd.replace(/[^A-Za-z0-9]+/g,'_')+'.json',JSON.stringify(deedRecord(no,rd),null,1),'application/json'); if(where!=='downloads') $('saved').textContent='saved to '+where+' '+now().slice(11,16);},1500);}
+function deedRecord(no,rd){const d=BYNO[no]; return {format:'deed-reader-deed-1',form:FORM,reader:rd,written:now(),deed:{no:d.no,date:d.date,type:d.type,inventory:d.inventory,index_id:d.index_id},entry:((S.readers[rd]||{}).deeds||{})[String(no)]||null,queries:((S.readers[rd]||{}).queries||[]).filter(q=>q.deed===no)}}
+
+/* ---------- export and import ---------- */
+function exportMd(){const L=['# Deed reader export','','Form: '+FORM+'. Exported: '+now()+'. Data built: '+(D.built||'')+'.','','Basis of each line of transcription: P-H where read in the ink (help recorded by line: M machine text, C model, G glossary or dictionary); lines marked X are not read in the ink. Index values are basis A.',''];
+ for(const rd of Object.keys(S.readers)){const r=S.readers[rd]; L.push('## Reader: '+rd,'');
+  for(const k of Object.keys(r.deeds).sort((a,b)=>a-b)){const ds=r.deeds[k], d=BYNO[+k]; if(!d) continue;
+   const has=Object.values(ds.scans).some(x=>x.text.trim()||x.events.length)||ds.notes.trim()||ds.entities.length||Object.keys(ds.seen).length||Object.values(ds.scans).some(x=>(x.notes||'').trim()); if(!has) continue;
+   L.push('### Deed '+k+': '+d.type+', '+d.date+' (index), '+(U.collection_short?U.collection_short+' ':'')+'inv. '+d.inventory,'');
+   const seen=Object.entries(ds.seen).filter(([,v])=>v&&v.v); if(seen.length) L.push('As seen by '+rd+': '+seen.map(([k2,v])=>k2+' = '+v.v).join('; '),'');
+   if(ds.notes.trim()) L.push('**English notes**','',ds.notes.trim(),'');
+   if(ds.entities.length){L.push('**Entities**','','| kind | as written | value | scan | line | checked in ink | comment |','|---|---|---|---|---|---|---|'); ds.entities.slice().sort((a,b)=>kindOrder(a)-kindOrder(b)).forEach(e=>L.push('| '+[e.kind,e.written,e.value,e.scan,e.line,e.ink,e.comment].map(x=>String(x||'').replace(/\|/g,'\\|')).join(' | ')+' |')); L.push('');}
+   for(const sid of Object.keys(ds.scans)){const sc=ds.scans[sid], pn=(sc.notes||'').trim(); if(!sc.text.trim()&&!sc.events.length&&!pn) continue; L.push('**Scan '+sid+'** · help by line: '+helpByLine(sc)+' · machine text shown '+count(sc,'machine_text_shown')+'× · last edit '+(sc.t||''),''); if(sc.text.trim()) L.push('```',sc.text.replace(/\s+$/,''),'```',''); if(pn) L.push('*Page notes, scan '+sid+'* ('+(sc.notes_reader||'')+', '+(sc.notes_t||'')+')','',pn,'');
+    const hf=sc.htr_fixes||{}; Object.keys(hf).forEach(f=>{if(!hf[f].length) return; L.push(f.startsWith('translations/')?'*Translation fixes, scan '+sid+'* (file '+f+', unchanged; model translation (I) with these corrections)':'*HTR glitch fixes, scan '+sid+'* (file '+f+', unchanged; P-MUC with these corrections)',''); hf[f].forEach(x=>L.push('- line '+x.line+': "'+x.from+'" → "'+x.to+'"'+(x.to===x.from?' (file reading restored)':'')+' ('+x.reader+', '+x.t+')')); L.push('');});}
+   const qs=r.queries.filter(q=>q.deed===+k); if(qs.length){L.push('**Questions to a model**',''); qs.forEach(q=>{L.push('- '+q.id+' ('+q.status+', '+qModel(q)+'), scan '+q.scan+' line '+q.line+': words "'+(q.words||'')+'"; '+(q.question||'')); (q.answers||[]).forEach(a=>L.push('  - answer ['+(a.basis||'R')+'] '+a.text.replace(/\n/g,' '))); if(q.ruling) L.push('  - ruling ('+q.ruling.t+'): '+q.ruling.text.replace(/\n/g,' '));}); L.push('');}
+  }}
+ return L.join('\n');}
+$('exportbtn').addEventListener('click',async()=>{persistNow(); const st=stamp(), rd=reader().replace(/[^A-Za-z0-9]+/g,'_');
+ const j=JSON.stringify({format:'deed-reader-export-1',form:FORM,exported:now(),data_built:D.built,state:S},null,1);
+ const w1=await writeOut(['exports'],'Deed_Reader_Export_'+rd+'_'+st+'.json',j,'application/json');
+ const w2=await writeOut(['exports'],'Deed_Reader_Export_'+rd+'_'+st+'.md',exportMd(),'text/markdown');
+ $('saved').innerHTML='<span class="flash">exported JSON and Markdown</span> '+(w1==='downloads'?'to Downloads: move both into deed-reader/exports/':'to exports/');});
+function mergeState(inc){let n=0; const newer=(a,b)=>!b||String(a&&a.t||'')>String(b.t||'');
+ for(const rd of Object.keys(inc.readers||{})){const ir=inc.readers[rd]; if(!S.readers[rd]) S.readers[rd]={deeds:{},queries:[]}; const r=S.readers[rd];
+  for(const k of Object.keys(ir.deeds||{})){const id=ir.deeds[k]; if(!r.deeds[k]){r.deeds[k]=id;n++;continue} const cd=r.deeds[k];
+   for(const sid of Object.keys(id.scans||{})){const a=id.scans[sid], b=cd.scans[sid]; if(!b){cd.scans[sid]=a;n++;continue}
+    const hfx=(a.htr_fixes||b.htr_fixes)?mergeFixes(b.htr_fixes,a.htr_fixes):null; // v1.3: HTR fixes from both sides are kept
+    const pa=(a.notes_t||'')>(b.notes_t||'')?a:b, pn={notes:pa.notes,notes_t:pa.notes_t,notes_reader:pa.notes_reader}; if(pa===a) n++; // page notes: the newer wins, apart from the scan's text (v1.1)
+    if(newer(a,b)){a.events=mergeEv(b.events,a.events); cd.scans[sid]=a; n++} else {b.events=mergeEv(b.events,a.events)}
+    const t=cd.scans[sid]; if(pn.notes_t){t.notes=pn.notes; t.notes_t=pn.notes_t; t.notes_reader=pn.notes_reader}
+    if(hfx){const before=JSON.stringify(t.htr_fixes||{}); t.htr_fixes=hfx; if(JSON.stringify(hfx)!==before) n++;}}
+   if((id.notes_t||'')>(cd.notes_t||'')){cd.notes=id.notes;cd.notes_t=id.notes_t;n++}
+   for(const f of Object.keys(id.seen||{})) if(newer(id.seen[f],cd.seen[f])){cd.seen[f]=id.seen[f];n++}
+   for(const e of id.entities||[]){const c=cd.entities.find(x=>x.id===e.id); if(!c){if(!(cd.removed||[]).some(x=>x.id===e.id)){cd.entities.push(e);n++}} else if(newer(e,c)){Object.assign(c,e);n++}}}
+  for(const q of ir.queries||[]){const c=r.queries.find(x=>x.id===q.id); if(!c){r.queries.push(q);n++} else {(q.answers||[]).forEach(a=>{if(!c.answers.some(x=>x.text===a.text&&x.t===a.t)){c.answers.push(a);n++}}); if(q.ruling&&(!c.ruling||q.ruling.t>c.ruling.t)){c.ruling=q.ruling;c.status='ruled';n++}}}}
+ return n;}
+function mergeEv(a,b){const s=new Set(a.map(e=>e.t+e.kind+e.detail)); return a.concat(b.filter(e=>!s.has(e.t+e.kind+e.detail))).sort((x,y)=>x.t<y.t?-1:1)}
+function importText(txt,fname){let j; try{j=JSON.parse(txt)}catch(e){alert('Not a JSON file.');return -1}
+ if(j.format==='deed-reader-answers-1'){importAnswers(txt,fname);return 0}
+ const inc=j.format==='deed-reader-export-1'?j.state:(j.schema==='deed-reader-1.0'?j:null); if(!inc){alert('Not a deed-reader export.');return -1}
+ const n=mergeState(inc); persistNow(); openDeed(cur.no||FIRST,cur.sid); alert('Imported '+fname+': '+n+' entries added or updated (newer wins; nothing deleted).'); return n;}
+$('importbtn').addEventListener('click',()=>$('importfile').click());
+$('importfile').addEventListener('change',e=>{const f=e.target.files[0]; if(f) f.text().then(t=>importText(t,f.name)); e.target.value='';});
+
+/* ---------- start ---------- */
+$('who').addEventListener('change',()=>{S.ui.lastReader=reader(); persist(); openDeed(cur.no,cur.sid);});
+$('helpbtn').addEventListener('click',()=>$('help').style.display='block');
+$('helpclose').addEventListener('click',()=>{$('help').style.display='none'; S.ui.helpClosed=now(); persist();});
+loadState();
+if(S.ui.lastReader) $('who').value=S.ui.lastReader;
+if(S.ui.rightW) setRightW(S.ui.rightW);
+applyHtrFont();
+$('built').textContent=D.built||'(data file missing)';
+const TITLE=(U.title||'Deed Reader')+(U.period?', '+U.period:''); document.title=TITLE; $('formtitle').textContent=TITLE; $('helpdeeds').textContent=U.help_deeds||'';
+if(D.sample) document.body.insertAdjacentHTML('afterbegin','<p class="warn" style="padding:6px 10px;margin:0;background:#fbf4e8"><b>Sample data:</b> invented deeds, for trying the form. To read real deeds, build data/deed_data.js (see README.md).</p>');
+if(!DEEDS.length){document.body.insertAdjacentHTML('afterbegin','<p class="warn" style="padding:10px">The deed data did not load. Open this form in Chrome from the deed-reader folder (double-click it, or Ctrl+O in Chrome). The Claude app’s own browser pane cannot read the data file or the scans from disk. If it is open in Chrome already, check that data/deed_data.js or sample/sample_data.js is there.</p>');}
+else {renderList(); openDeed(S.ui.lastDeed&&BYNO[S.ui.lastDeed]?S.ui.lastDeed:FIRST,S.ui.lastScan);}
+if(!S.ui.helpClosed) $('help').style.display='block';
+window.DR={S:()=>S,exportMd,mergeState,importText,scanTxt,queryText,cur}; // for testing
+</script></body></html>

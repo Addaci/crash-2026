@@ -1,0 +1,3 @@
+# The Deed Reader's sample is checked byte for byte and by SHA-256 (deed-reader/test_sample.py):
+# keep its line endings as committed on every system, Windows included.
+deed-reader/sample/** text eol=lf

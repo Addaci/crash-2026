@@ -1,0 +1,22 @@
+DEED: 1
+SCAN: DEMO00000000001
+LANGUAGE: en
+KIND: diplomatic
+SOURCE_KIND: HTR
+SOURCE_FILE: machine_text/DEMO00000000001.txt
+SOURCE_SHA256: 8fedf446620bb17dfa20b230270702a33bc094e4d8aa2fd39ca40c4622547b61
+TRANSLATOR: the sample's author (invented)
+MODEL: Model A
+MADE: 2026-11-25
+BASIS: I
+REVIEWED_BY: none
+CONVENTIONS: one English line per HTR line; ship names in italics
+---
+1 | Today, the 14th of March 1652, there appeared before me,
+2-3 | Hendrick Demo, notary public admitted by the Court of Holland, residing in Amsterdam,
+4 | and the witnesses named below, Jan Voorbeeld,
+5 | master under God of the ship called the
+6 | *Proefvaart*, of the one part, and Pieter Oefening,
+7 | merchant, of the other part, and they declared
+8 | that they had agreed as follows
+5 note: "naest Godt": the usual formula for a ship's master.

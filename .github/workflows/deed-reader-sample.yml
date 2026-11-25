@@ -1,0 +1,26 @@
+name: Deed Reader sample
+
+# Builds the Deed Reader's sample (invented deeds), checks it against the committed copy,
+# and opens the form on it in headless Chrome. See deed-reader/test_sample.py.
+
+on:
+  push:
+    paths: ["deed-reader/**", ".github/scripts/data_guard.py", ".github/workflows/deed-reader-sample.yml"]
+  pull_request:
+    paths: ["deed-reader/**", ".github/scripts/data_guard.py", ".github/workflows/deed-reader-sample.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the sample and open the form on it
+        env:
+          REQUIRE_CHROME: "1"
+        run: python -I deed-reader/test_sample.py
