@@ -74,14 +74,19 @@ The HTR evaluation script `htr_eval` lives in [Addaci/HCA](https://github.com/Ad
 
 ## Team
 
+Four seats, in Graz:
+
 | Seat | What it owns |
 |---|---|
 | Lead and judge | The question, the test set, the planted false hits, and every verdict on a proposed link |
 | Search and graph | The four search methods on the frozen test set, recall for each, and the graph that stores each link as an assertion |
 | Text and entities | Ships, masters, places and dates from machine text in Dutch, English, Spanish, Portuguese and French; reading the Dutch deeds the tools surface; checks on the machine reading |
 | Fourth seat | Dutch reader or checks, depending on what the third seat brings |
-| External judge, by Zoom | What makes a match convincing; independent, timed verdicts on a sample of links |
-| Dutch source expert, by Zoom | Practical experience of HTR and semantic search on Dutch notarial records |
+
+Two experts, by Zoom (not participants in Graz):
+
+- **External judge:** what makes a match convincing; independent, timed verdicts on a sample of links.
+- **Dutch source expert:** practical experience of HTR and semantic search on Dutch notarial records.
 
 The lead rules on substance: what is tested and what counts as a right answer. The seats decide technique: models, units of search, measures and code. One seat is still open. Interested? Find us in the CRASH teams room.
 
