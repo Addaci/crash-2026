@@ -8,7 +8,7 @@ machine text (HTR), translations and questions to a model, with a record of ever
 Made from form v1.3 of 13 November 2026 by an exact
 find-and-replace script; the history is in CHANGELOG.md. Code under the MIT licence (see the README).
 Data: data/deed_data.js, built by build_deed_data.py and never committed; if it is absent,
-the form opens sample/sample_data.js (invented deeds) with a banner.
+the form opens sample/sample_data.js (invented deeds) with a banner. User guide: docs/deed-reader-user-guide.md.
 -->
 <style>
 :root{--bg:#f6f3ec;--ink:#1d1a16;--rule:#c9c2b4;--pane:#fffdf8;--accent:#7a3b1e;--muted:#6b645a;--soft:#efe9dc;--ok:#2f6b3a;--warn:#9a5b00;--sel:#f3dcc9}
@@ -488,7 +488,9 @@ function renderSearch(){const el=$('rp-search'); const st=S.ui.search=S.ui.searc
   '<div class="sopts"><span class="sl">Scope</span> <label><input type="radio" name="sscope" value="deed"'+(st.scope==='deed'?' checked':'')+'> this deed'+(cur.no?' ('+cur.no+')':'')+'</label> <label><input type="radio" name="sscope" value="all"'+(st.scope!=='deed'?' checked':'')+'> all '+DEEDS.length+' deeds</label>'+
   ' &middot; <label title="Also find spellings within one letter (short words) or two letters (7 letters or more), and the known variants listed in the data"><input type="checkbox" id="svar"'+(st.variants?' checked':'')+'> spellings</label></div>'+
   '<div class="sopts"><span class="sl">Layers</span> '+LAYERS.map(l=>'<label><input type="checkbox" class="slay" value="'+l[0]+'"'+(st.layers[l[0]]?' checked':'')+'> '+l[1]+'</label>').join(' ')+'</div>'+
+  '<div class="sl">The letters in brackets say what each layer rests on: <b>P-H</b> transcribed by hand from the ink; <b>P-MUC</b> machine text, uncorrected; <b>I</b> inference (a model’s translation or synthesis); <b>A</b> the archive’s index record only. All the codes: <a href="#" class="keylink" title="Open the Key &amp; conventions tab">Key &amp; conventions</a>.</div>'+
   '<div class="sl">Ranked: exact before spelling variants; then my transcriptions, HTR, translation, synthesis, notes, index; then deed, scan and line. Click a hit to open it.</div></div><div id="sres"></div>';
+ el.querySelectorAll('.keylink').forEach(a=>a.addEventListener('click',e=>{e.preventDefault(); showRt('key'); $('rp-key').scrollTop=0;}));
  const go=()=>{st.q=$('sq').value; st.scope=(el.querySelector('input[name=sscope]:checked')||{}).value||'all'; st.variants=$('svar').checked; el.querySelectorAll('.slay').forEach(c=>st.layers[c.value]=c.checked); persist(); runSearch()};
  $('sgo').addEventListener('click',go); $('sq').addEventListener('keydown',e=>{if(e.key==='Enter') go()}); el.querySelectorAll('input[name=sscope],#svar,.slay').forEach(c=>c.addEventListener('change',go));
  if(st.q) runSearch();}

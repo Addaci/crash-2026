@@ -1,6 +1,6 @@
-# Deed Reader (work in progress)
+# Deed Reader
 
-**Status, 22 November 2026:** work in progress. The form and its data builder are here and have been checked against the version they come from. The sample data, the test, the user guide and the change log are not yet written, so a fresh clone **cannot open the form yet**: it says "the deed data did not load".
+**Status, 25 November 2026:** version 2.0. A fresh clone opens the form straight away on invented sample deeds: open `deed_reader.html` in Chrome. To read real deeds, build your own data file (below). How to use it: [`docs/deed-reader-user-guide.md`](../docs/deed-reader-user-guide.md). History: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Contents
 
@@ -27,10 +27,13 @@ Beside each scan the form shows the archive's index record, machine text (HTR), 
 
 | File | What it does |
 | --- | --- |
-| `deed_reader.html` | The form (version 2.0). Opens `data/deed_data.js`; if that is absent, `sample/sample_data.js` (not yet written). |
+| `deed_reader.html` | The form (version 2.0). Opens `data/deed_data.js`; if that is absent, `sample/sample_data.js`, with a "Sample data" banner. |
 | `build_deed_data.py` | Builds `data/deed_data.js` from local files only. Sends no request to any archive. |
 | `saa_jsonld.py` | Reads one saved index record of the Stadsarchief Amsterdam (JSON-LD). |
 | `config.example.json` | Every setting, with neutral values. Copy it to `config.local.json` and fill it in. |
+| `sample/` | Four invented deeds on five scans (no images), the script that writes their inputs, and the settings that build them. See `sample/README.md`. |
+| `test_sample.py` | Builds the sample, checks it, runs the data guard over it and opens the form on it in headless Chrome. Runs on GitHub on every change here. |
+| `CHANGELOG.md` | Versions 1.0 to 1.3 (11–13 November 2026) and 2.0. |
 
 Standard library Python only; Chrome for the form (the Claude app's own browser pane cannot open local images).
 
@@ -48,10 +51,8 @@ One caution: `build_deed_data.py` is on the guard's allow-list (`.github/data-gu
 
 ## Still to come
 
-- Sample data (invented deeds), so the form opens straight after cloning, and a test that builds it.
 - Notes on running it on the hackathon cluster: served from a job, opened through an SSH tunnel, saving to the team workspace, model calls logged.
-- `docs/deed-reader-user-guide.md`.
-- `CHANGELOG.md`: the history of versions 1.0 to 1.3 (11–13 November 2026).
 - The *Ask a model* tab connected to the models on the Graz cluster (today a question is copied into the model's chat, or sent as a query file).
+- Screenshots for `docs/figures/`.
 
-Code under the MIT licence (see the repository's `LICENSE`). Made by Claude Opus 5.5 High with Colin Greenstreet, 11–23 November 2026.
+Code under the MIT licence (see the repository's `LICENSE`). Made by Claude Opus 5.5 High with Colin Greenstreet, 11–25 November 2026.

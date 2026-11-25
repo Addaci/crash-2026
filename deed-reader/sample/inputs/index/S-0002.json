@@ -1,0 +1,166 @@
+{
+ "@context": {
+  "note": "Invented sample record for the Deed Reader; not from any archive."
+ },
+ "@graph": [
+  {
+   "@id": "urn:sample:S-0002",
+   "@type": [
+    "rico:Record",
+    "rt:Deed"
+   ],
+   "rico:title": "Verklaring over de lading van De Proefvaart (invented)",
+   "rico:normalizedDateValue": {
+    "@value": "1652-03-14"
+   },
+   "rico:hasDocumentaryFormType": {
+    "@id": "urn:sample:S-0002/type"
+   },
+   "rico:isOrWasIncludedIn": {
+    "@id": "urn:sample:inventory-1"
+   },
+   "rico:hasOrHadSubject": [
+    {
+     "@id": "urn:sample:S-0002/obs1"
+    },
+    {
+     "@id": "urn:sample:S-0002/obs2"
+    }
+   ],
+   "saa:isAssociatedWithLocation": [
+    {
+     "@id": "urn:sample:S-0002/place1"
+    }
+   ],
+   "saa:hasSpecification": [
+    {
+     "@id": "urn:sample:S-0002/spec1"
+    },
+    {
+     "@id": "urn:sample:S-0002/spec2"
+    }
+   ]
+  },
+  {
+   "@id": "urn:sample:S-0002/type",
+   "skos:prefLabel": "Verklaring"
+  },
+  {
+   "@id": "urn:sample:inventory-1/context",
+   "http://purl.org/dc/terms/title": "1, Protocol van notaris Hendrick Demo, 1650-1655 (invented)"
+  },
+  {
+   "@id": "urn:sample:S-0002/obs1",
+   "@type": "saa:LinkedPersonObservation",
+   "memorix:order": {
+    "@value": "1"
+   },
+   "saa:relatedPersonObservation": {
+    "@id": "urn:sample:S-0002/person1"
+   },
+   "saa:relatedPersonObservationRole": {
+    "@id": "urn:sample:role-comparant"
+   }
+  },
+  {
+   "@id": "urn:sample:S-0002/person1/context",
+   "http://purl.org/dc/terms/title": "Anna Proefmans"
+  },
+  {
+   "@id": "urn:sample:role-comparant",
+   "skos:prefLabel": "Comparant"
+  },
+  {
+   "@id": "urn:sample:S-0002/obs2",
+   "@type": "saa:LinkedPersonObservation",
+   "memorix:order": {
+    "@value": "2"
+   },
+   "saa:relatedPersonObservation": {
+    "@id": "urn:sample:S-0002/person2"
+   },
+   "saa:relatedPersonObservationRole": {
+    "@id": "urn:sample:role-genoemd"
+   }
+  },
+  {
+   "@id": "urn:sample:S-0002/person2/context",
+   "http://purl.org/dc/terms/title": "Jan Voorbeeld"
+  },
+  {
+   "@id": "urn:sample:role-genoemd",
+   "skos:prefLabel": "Genoemd"
+  },
+  {
+   "@id": "urn:sample:S-0002/place1",
+   "saa:locationTextualValue": "Amsterdam"
+  },
+  {
+   "@id": "urn:sample:S-0002/spec1",
+   "saa:specificationType": {
+    "@id": "urn:sample:spec-taal"
+   },
+   "saa:specificationTextualValue": "Nederlands"
+  },
+  {
+   "@id": "urn:sample:spec-taal",
+   "skos:prefLabel": "taal"
+  },
+  {
+   "@id": "urn:sample:S-0002/spec2",
+   "saa:specificationType": {
+    "@id": "urn:sample:spec-onderwerpsomschrijving"
+   },
+   "saa:specificationTextualValue": "Invented sample deed: it begins on the scan where deed 1 ends."
+  },
+  {
+   "@id": "urn:sample:spec-onderwerpsomschrijving",
+   "skos:prefLabel": "onderwerpsomschrijving"
+  },
+  {
+   "@id": "urn:sample:S-0002/context",
+   "memorix:hasDigitalDocument": {
+    "@list": [
+     {
+      "@id": "urn:sample:S-0002/scan0"
+     },
+     {
+      "@id": "urn:sample:S-0002/scan1"
+     }
+    ]
+   }
+  },
+  {
+   "@id": "urn:sample:S-0002/scan0",
+   "http://schema.org/name": "DEMO00000000002.jp2",
+   "http://schema.org/width": {
+    "@value": "4000"
+   },
+   "http://schema.org/height": {
+    "@value": "3000"
+   },
+   "http://schema.org/fileSize": {
+    "@value": "2500000"
+   },
+   "memorix:iiif": {
+    "@id": ""
+   }
+  },
+  {
+   "@id": "urn:sample:S-0002/scan1",
+   "http://schema.org/name": "DEMO00000000003.jp2",
+   "http://schema.org/width": {
+    "@value": "4000"
+   },
+   "http://schema.org/height": {
+    "@value": "3000"
+   },
+   "http://schema.org/fileSize": {
+    "@value": "2500000"
+   },
+   "memorix:iiif": {
+    "@id": ""
+   }
+  }
+ ]
+}

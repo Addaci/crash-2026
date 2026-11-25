@@ -1,0 +1,197 @@
+{
+ "@context": {
+  "note": "Invented sample record for the Deed Reader; not from any archive."
+ },
+ "@graph": [
+  {
+   "@id": "urn:sample:S-0001",
+   "@type": [
+    "rico:Record",
+    "rt:Deed"
+   ],
+   "rico:title": "Bevrachting van het schip De Proefvaart naar Barbados (invented)",
+   "rico:normalizedDateValue": {
+    "@value": "1652-03-14"
+   },
+   "rico:hasDocumentaryFormType": {
+    "@id": "urn:sample:S-0001/type"
+   },
+   "rico:isOrWasIncludedIn": {
+    "@id": "urn:sample:inventory-1"
+   },
+   "rico:hasOrHadSubject": [
+    {
+     "@id": "urn:sample:S-0001/obs1"
+    },
+    {
+     "@id": "urn:sample:S-0001/obs2"
+    },
+    {
+     "@id": "urn:sample:S-0001/obs3"
+    }
+   ],
+   "saa:isAssociatedWithLocation": [
+    {
+     "@id": "urn:sample:S-0001/place1"
+    },
+    {
+     "@id": "urn:sample:S-0001/place2"
+    }
+   ],
+   "saa:hasSpecification": [
+    {
+     "@id": "urn:sample:S-0001/spec1"
+    },
+    {
+     "@id": "urn:sample:S-0001/spec2"
+    }
+   ]
+  },
+  {
+   "@id": "urn:sample:S-0001/type",
+   "skos:prefLabel": "Bevrachting"
+  },
+  {
+   "@id": "urn:sample:inventory-1/context",
+   "http://purl.org/dc/terms/title": "1, Protocol van notaris Hendrick Demo, 1650-1655 (invented)"
+  },
+  {
+   "@id": "urn:sample:S-0001/obs1",
+   "@type": "saa:LinkedPersonObservation",
+   "memorix:order": {
+    "@value": "1"
+   },
+   "saa:relatedPersonObservation": {
+    "@id": "urn:sample:S-0001/person1"
+   },
+   "saa:relatedPersonObservationRole": {
+    "@id": "urn:sample:role-schipper"
+   }
+  },
+  {
+   "@id": "urn:sample:S-0001/person1/context",
+   "http://purl.org/dc/terms/title": "Jan Voorbeeld"
+  },
+  {
+   "@id": "urn:sample:role-schipper",
+   "skos:prefLabel": "Schipper"
+  },
+  {
+   "@id": "urn:sample:S-0001/obs2",
+   "@type": "saa:LinkedPersonObservation",
+   "memorix:order": {
+    "@value": "2"
+   },
+   "saa:relatedPersonObservation": {
+    "@id": "urn:sample:S-0001/person2"
+   },
+   "saa:relatedPersonObservationRole": {
+    "@id": "urn:sample:role-bevrachter"
+   }
+  },
+  {
+   "@id": "urn:sample:S-0001/person2/context",
+   "http://purl.org/dc/terms/title": "Pieter Oefening"
+  },
+  {
+   "@id": "urn:sample:role-bevrachter",
+   "skos:prefLabel": "Bevrachter"
+  },
+  {
+   "@id": "urn:sample:S-0001/obs3",
+   "@type": "saa:LinkedPersonObservation",
+   "memorix:order": {
+    "@value": "3"
+   },
+   "saa:relatedPersonObservation": {
+    "@id": "urn:sample:S-0001/person3"
+   },
+   "saa:relatedPersonObservationRole": {
+    "@id": "urn:sample:role-getuige"
+   }
+  },
+  {
+   "@id": "urn:sample:S-0001/person3/context",
+   "http://purl.org/dc/terms/title": "Claes Steekproef"
+  },
+  {
+   "@id": "urn:sample:role-getuige",
+   "skos:prefLabel": "Getuige"
+  },
+  {
+   "@id": "urn:sample:S-0001/place1",
+   "saa:locationTextualValue": "Amsterdam"
+  },
+  {
+   "@id": "urn:sample:S-0001/place2",
+   "saa:locationTextualValue": "Barbados"
+  },
+  {
+   "@id": "urn:sample:S-0001/spec1",
+   "saa:specificationType": {
+    "@id": "urn:sample:spec-taal"
+   },
+   "saa:specificationTextualValue": "Nederlands"
+  },
+  {
+   "@id": "urn:sample:spec-taal",
+   "skos:prefLabel": "taal"
+  },
+  {
+   "@id": "urn:sample:S-0001/spec2",
+   "saa:specificationType": {
+    "@id": "urn:sample:spec-onderwerpsomschrijving"
+   },
+   "saa:specificationTextualValue": "Invented sample deed: charter of De Proefvaart, Amsterdam to Barbados and back."
+  },
+  {
+   "@id": "urn:sample:spec-onderwerpsomschrijving",
+   "skos:prefLabel": "onderwerpsomschrijving"
+  },
+  {
+   "@id": "urn:sample:S-0001/context",
+   "memorix:hasDigitalDocument": {
+    "@list": [
+     {
+      "@id": "urn:sample:S-0001/scan0"
+     },
+     {
+      "@id": "urn:sample:S-0001/scan1"
+     }
+    ]
+   }
+  },
+  {
+   "@id": "urn:sample:S-0001/scan0",
+   "http://schema.org/name": "DEMO00000000001.jp2",
+   "http://schema.org/width": {
+    "@value": "4000"
+   },
+   "http://schema.org/height": {
+    "@value": "3000"
+   },
+   "http://schema.org/fileSize": {
+    "@value": "2500000"
+   },
+   "memorix:iiif": {
+    "@id": ""
+   }
+  },
+  {
+   "@id": "urn:sample:S-0001/scan1",
+   "http://schema.org/name": "DEMO00000000002.jp2",
+   "http://schema.org/width": {
+    "@value": "4000"
+   },
+   "http://schema.org/height": {
+    "@value": "3000"
+   },
+   "http://schema.org/fileSize": {
+    "@value": "2500000"
+   },
+   "memorix:iiif": {
+    "@id": ""
+   }
+  }
+ ]
+}

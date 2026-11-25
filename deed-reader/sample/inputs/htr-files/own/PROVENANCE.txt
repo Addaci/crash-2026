@@ -1,0 +1,5 @@
+MADE_BY: the sample's author (invented)
+PLATFORM: none (typed by hand to look like HTR)
+MODEL: Sample HTR model
+CORRECTED: no
+BASIS: P-MUC

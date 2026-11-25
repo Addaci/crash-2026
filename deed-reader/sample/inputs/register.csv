@@ -1,0 +1,5 @@
+no,batch,date,deed_type,language,inventory,index_id,scans,notary_per_coverage,check_tier,machine_text,in_english_set_S1-05
+1,S1,1652-03-14,Bevrachting,Nederlands,1,S-0001,DEMO00000000001 ; DEMO00000000002,Hendrick Demo,A,HTR,yes
+2,S1,1652-03-14,Verklaring,Nederlands,1,S-0002,DEMO00000000002 ; DEMO00000000003,Hendrick Demo,B,HTR,
+3,S2,1660-07-02,Procuratie,"Nederlands, Engels",2,S-0003,DEMO00000000004,Hendrick Demo,A,HTR,yes
+4,S2,1675-11-20,Obligatie,Nederlands,2,S-0004,DEMO00000000005,,B,none,

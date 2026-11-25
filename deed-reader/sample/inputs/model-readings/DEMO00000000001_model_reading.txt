@@ -1,0 +1,6 @@
+MODEL: Model A
+BASIS: I
+MADE: 2026-11-25
+---
+A model's reading of the first lines (basis I: a lead, not a transcription):
+Op huyden den xiiij Maert 1652 compareerde voor mij Hendrick Demo notaris ...
