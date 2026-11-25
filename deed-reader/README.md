@@ -51,8 +51,7 @@ One caution: `build_deed_data.py` is on the guard's allow-list (`.github/data-gu
 
 ## Still to come
 
-- Notes on running it on the hackathon cluster: served from a job, opened through an SSH tunnel, saving to the team workspace, model calls logged.
-- The *Ask a model* tab connected to the models on the Graz cluster (today a question is copied into the model's chat, or sent as a query file).
+- The *Ask a model* tab connected to the models on the Graz cluster (today a question is copied into the model's chat, or sent as a query file). How the form fits the cluster, and what running it there would take: [`docs/deed-reader-on-the-cluster.md`](../docs/deed-reader-on-the-cluster.md).
 - Screenshots for `docs/figures/`.
 
 Code under the MIT licence (see the repository's `LICENSE`). Made by Claude Opus 5.5 High with Colin Greenstreet, 11–25 November 2026.
