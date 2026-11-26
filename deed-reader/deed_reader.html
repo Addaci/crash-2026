@@ -2,7 +2,10 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Deed Reader</title>
 <!--
-Deed Reader 2.0 (deed-reader/deed_reader.html), 22 November 2026.
+Deed Reader 2.1 (deed-reader/deed_reader.html), 26 November 2026; 2.0 of 22 November 2026.
+2.1 adds team-server mode: opened from server.py, the reader's name comes from their personal link,
+work is also kept on the server, and other readers' work on the open scan is shown read-only
+("Also read by"). Opened from a file, the form works exactly as 2.0.
 A form for reading and transcribing deeds from their scans, beside the archive's index record,
 machine text (HTR), translations and questions to a model, with a record of every kind of help used.
 Made from form v1.3 of 13 November 2026 by an exact
@@ -132,11 +135,18 @@ table.ent th[title]{cursor:help;text-decoration:underline dotted}
 .slayer{font-size:11px;padding:0 5px;border-radius:2px;color:#fff;background:#6b645a}.slayer.ly-ph{background:#2f6b3a}.slayer.ly-htr{background:#1f4e79}.slayer.ly-tr,.slayer.ly-syn{background:#7a3b1e}
 .svar{font-size:11px;color:var(--warn)}.hl.hit,.syn .hit{background:#ffe9a8 !important;transition:background .4s}
 .syn{padding:4px 14px 14px;font-size:14px;line-height:1.5}.syn h4{margin:12px 0 4px;font-size:13px;font-variant:small-caps;letter-spacing:.04em;color:var(--accent);font-weight:normal}.syn p{margin:0 0 8px}
+/* 2.1: team server, "Also read by" */
+#also{display:none;border-top:1px solid var(--rule);max-height:34%;overflow:auto;padding:5px 10px;background:#f1f5f9;font-size:12.5px}
+#also .alsorow{padding:3px 0;border-bottom:1px dotted var(--rule)}#also .alsorow:last-child{border-bottom:0}
+#also button{padding:1px 6px;font-size:12px;margin-left:4px}
+#also .alsotext{margin:4px 0 2px;background:#fff;border:1px solid var(--rule);border-radius:3px;font:14px/1.5 Cambria,Georgia,serif;padding:3px 0}
+#also .alsotext .n{width:52px}
+#who:disabled{background:#efe9dc;color:var(--ink);opacity:1}
 </style></head><body>
 <header>
  <button id="togglelist" title="Show or hide the deed list">Deeds &#9776;</button>
  <h1><span id="formtitle">Deed Reader</span> <span id="deedtitle"></span></h1>
- <span class="prep">Deed Reader 2.0 &middot; data built <span id="built"></span></span>
+ <span class="prep">Deed Reader 2.1 &middot; data built <span id="built"></span><span id="srvmode"></span></span>
  <span class="sp"></span>
  <label class="sl">Transcriber <input id="who" type="text" size="9" value="" placeholder="your name"></label>
  <button id="folderbtn" title="Save each deed as a file in the deed-reader folder (Chrome asks once)">Connect working folder</button>
@@ -202,13 +212,14 @@ table.ent th[title]{cursor:help;text-decoration:underline dotted}
    </div>
    <div id="editor"><div id="gutter">1</div><textarea id="ta" spellcheck="false" placeholder="As written. One manuscript line per text line. Original spelling; abbreviations as written (A^{o}, voorn.); [?] after a doubtful word; [illegible]; ~~deleted~~; \interlined/; [margin] on its own line. Saved in this browser as you type."></textarea></div>
    <div id="mt"></div>
+   <div id="also"></div>
    <div class="tools" style="border-top:1px solid var(--rule);border-bottom:0">
     <button id="showmt" title="Shows the HTR under your text, numbered, for checking line by line. The HTR tab shows it with its full provenance.">Show HTR below my text</button>
     <button id="showcr">Show model reading (I)</button>
     <span class="sp"></span>
     <button id="savetxt" class="primary" title="Write this scan's transcription as a .txt with a header naming deed, scan, transcriber, date and the record of help">Save scan .txt</button>
    </div>
-   <div class="status"><span id="lines">0 lines</span><span class="rec" id="helprec"></span><span id="saved">kept in this browser</span></div>
+   <div class="status"><span id="lines">0 lines</span><span class="rec" id="helprec"></span><span id="saved">kept in this browser</span><span id="srvsaved"></span></div>
   </div>
   <div class="rpanel" id="rp-htr"></div>
   <div class="rpanel" id="rp-deed"></div>
@@ -218,7 +229,7 @@ table.ent th[title]{cursor:help;text-decoration:underline dotted}
  </div>
 </main>
 <div id="help">
- <h2>How this form works (2.0)</h2>
+ <h2>How this form works (2.1)</h2>
  <ol>
   <li><b>Pick a deed</b> on the left<span id="helpdeeds"></span>. Its scans are the tabs above the image. Use <i>left half / right half</i> for two-page openings.</li>
   <li><b>Transcribe</b> on the right: one manuscript line per text line, spelling as written. The toolbar inserts the marks and Dutch letters.</li>
@@ -228,6 +239,7 @@ table.ent th[title]{cursor:help;text-decoration:underline dotted}
   <li><b>Ask a model</b>: draw a box on the image round the words in doubt (<i>Draw box</i>), then <i>Ask a model about this line</i> and choose the model from the list. The question goes to the clipboard (paste it into that model&rsquo;s chat) and to the log in the <i>Ask a model</i> tab, with the model&rsquo;s name. Paste the answer back there and type your ruling. For many questions: <i>Save for a batch of questions</i>, then <i>Write query file</i> for one model; that model writes an answer file, which you import.</li>
   <li><b>Deed: index &amp; notes</b> holds the archive's index record (basis A, never overwritten), your own readings of language, type and date, English notes on the whole deed, <b>page notes</b> (one box per scan) and the entity check table. To add an entity, select its words in the text and click <i>Selection &rarr; entity</i> in the line bar; then choose its kind.</li>
   <li><b>Saving.</b> Everything is kept in this browser as you type. <i>Connect working folder</i> (pick the <code>deed-reader</code> folder) saves each deed as a file in <code>readings/&lt;transcriber&gt;/</code>. Without it, <i>Export all</i> and <i>Save scan .txt</i> go to Downloads: move them into <code>deed-reader/exports/</code>. These folders stay on your computer or the cluster and are never committed.</li>
+  <li><b>Team server</b> (when the form is opened from your personal link, not from a file): your name comes from the link and cannot be changed; your work is kept in this browser and also on the server, where every save is added and nothing is overwritten (the status line says when). Under your transcription, <i>Also read by</i> lists the other readers with text on the open scan; <i>Show</i> opens their text, read-only. You never change their work, nor they yours.</li>
  </ol>
  <button id="helpclose" class="primary">Close</button>
 </div>
@@ -258,7 +270,7 @@ function blank(){return {schema:'deed-reader-1.0',created:now(),readers:{},ui:{}
 function loadState(){try{S=JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){S=null} if(!S||!S.readers) S=blank(); S.ui=S.ui||{};}
 let saveTimer=null;
 function persist(){clearTimeout(saveTimer);saveTimer=setTimeout(persistNow,300)}
-function persistNow(){clearTimeout(saveTimer);try{localStorage.setItem(SKEY,JSON.stringify(S));$('saved').textContent='kept in this browser '+now().slice(11,16)}catch(e){$('saved').innerHTML='<span class="warn">browser storage full or blocked: Export all now</span>'} folderAutosave();}
+function persistNow(){clearTimeout(saveTimer);try{localStorage.setItem(SKEY,JSON.stringify(S));$('saved').textContent='kept in this browser '+now().slice(11,16)}catch(e){$('saved').innerHTML='<span class="warn">browser storage full or blocked: Export all now</span>'} folderAutosave(); serverQueue();}
 function reader(){return ($('who').value.trim()||'anon')}
 function R(){const w=reader(); if(!S.readers[w]) S.readers[w]={deeds:{},queries:[]}; return S.readers[w]}
 function DS(no){const r=R(); const k=String(no); if(!r.deeds[k]) r.deeds[k]={seen:{},notes:'',entities:[],scans:{}}; return r.deeds[k]}
@@ -312,6 +324,7 @@ function openScan(sid){
  $('ta').value=sc.text; prevLines=sc.text.split('\n'); $('mt').style.display='none'; askClose();
  refreshEditor(); updateHelpButtons(); markPageNote();
  cur.htrIdx=0; if($('rp-htr').classList.contains('show')) renderHtr(true);
+ renderAlso();
 }
 /* image view */
 function applyView(){const im=$('img'); if(!im.naturalWidth) return; const w=im.naturalWidth*cur.zoom/100, h=im.naturalHeight*cur.zoom/100; im.style.width=w+'px'; im.style.height=h+'px';
@@ -723,6 +736,64 @@ function importText(txt,fname){let j; try{j=JSON.parse(txt)}catch(e){alert('Not 
 $('importbtn').addEventListener('click',()=>$('importfile').click());
 $('importfile').addEventListener('change',e=>{const f=e.target.files[0]; if(f) f.text().then(t=>importText(t,f.name)); e.target.value='';});
 
+/* ---------- 2.1: team server (D7, D8, D9; 26 Nov 2026) ----------
+   Only when the form is served by server.py. The server says who the reader is (D7, from the token).
+   The reader's own work is kept in this browser as before and sent to the server, at most every
+   5 seconds and only the deeds that changed; the server appends every save (D8). Other readers' work
+   is fetched every 30 seconds and kept apart in OTHERS, shown read-only and never written back (D9). */
+var SRV=null, OTHERS={}, srvSent={}, srvSentQ=null, srvTimer=null, srvBusy=false, srvLast=0, srvPulled='', alsoOpen=new Set();
+function srvStatus(kind,msg){const el=$('srvsaved'); if(el) el.innerHTML=kind==='warn'?'<span class="warn">'+esc(msg)+'</span>':esc(msg)}
+function srvChanges(){const r=SRV&&S.readers[SRV.reader]; if(!r) return null; const deeds={}, sent={};
+ for(const k of Object.keys(r.deeds)){const j=JSON.stringify(r.deeds[k]); if(srvSent[k]!==j){deeds[k]=r.deeds[k]; sent[k]=j}}
+ const qj=JSON.stringify(r.queries||[]), body={deeds}; if(qj!==srvSentQ) body.queries=r.queries||[];
+ if(!Object.keys(deeds).length&&body.queries===undefined) return null;
+ return {body,sent,qj};}
+function serverQueue(){if(!SRV||srvTimer) return; srvTimer=setTimeout(serverSend,Math.max(800,5000-(Date.now()-srvLast)))}
+async function serverSend(){srvTimer=null; if(srvBusy){serverQueue();return} const c=srvChanges(); if(!c) return;
+ srvBusy=true; srvLast=Date.now();
+ try{const res=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(c.body)});
+  if(res.status===401){srvStatus('warn','the server no longer knows this browser: open your personal link again (your work is kept in this browser)');return}
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const j=await res.json(); Object.assign(srvSent,c.sent); if(c.body.queries) srvSentQ=c.qj;
+  srvStatus('ok','kept on the server '+String(j.saved||now()).slice(11,16));
+ }catch(e){srvStatus('warn','server not reached: kept in this browser only; trying again'); setTimeout(serverQueue,15000)}
+ finally{srvBusy=false}
+ if(srvChanges()) serverQueue();}
+window.addEventListener('pagehide',()=>{const c=srvChanges(); if(c&&navigator.sendBeacon) navigator.sendBeacon('/api/save',new Blob([JSON.stringify(c.body)],{type:'application/json'}))});
+async function serverPull(first){let st;
+ try{const res=await fetch('/api/state',{cache:'no-store',credentials:'same-origin'});
+  if(res.status===401){srvStatus('warn','the server no longer knows this browser: open your personal link again');return}
+  if(!res.ok) throw new Error('HTTP '+res.status); st=await res.json();}
+ catch(e){if(first) srvStatus('warn','server not reached: kept in this browser only'); return}
+ const all=st.readers||{}, mine=all[SRV.reader];
+ if(first){
+  if(mine){Object.keys(mine.deeds||{}).forEach(k=>srvSent[k]=JSON.stringify(mine.deeds[k])); srvSentQ=JSON.stringify(mine.queries||[]);
+   mergeState({readers:{[SRV.reader]:{deeds:mine.deeds||{},queries:mine.queries||[]}}});} // newer wins, nothing deleted: unsent work in this browser survives
+  srvStatus('ok','on the server as '+SRV.reader);
+  persistNow(); // sends anything this browser holds that the server has not
+  if(DEEDS.length) openDeed(cur.no||FIRST,cur.sid);}
+ OTHERS={}; Object.keys(all).forEach(rd=>{if(rd!==SRV.reader) OTHERS[rd]=all[rd]});
+ srvPulled=String(st.t||now()).slice(11,16); renderAlso();}
+async function serverStart(){if(!/^https?:$/.test(location.protocol)) return; // opened from a file: no server
+ let me; try{const res=await fetch('/api/me',{cache:'no-store',credentials:'same-origin'}); if(!res.ok) return; me=await res.json()}catch(e){return}
+ if(!me||!me.reader) return;
+ SRV=me; const w=$('who'); w.value=me.reader; w.disabled=true; w.title='Your name comes from your personal link (team server); it cannot be changed here.';
+ // the form opened its first deed before the server answered; an untouched "anon" entry made then is dropped (one with any work in it is kept)
+ const an=S.readers.anon; if(an&&!(an.queries||[]).length&&!Object.values(an.deeds||{}).some(ds=>(ds.notes||'').trim()||(ds.entities||[]).length||Object.keys(ds.seen||{}).length||Object.values(ds.scans||{}).some(x=>(x.text||'').trim()||(x.events||[]).length||(x.notes||'').trim()))) delete S.readers.anon;
+ S.ui.lastReader=me.reader; $('srvmode').textContent=' · team server '+(me.server||'')+', reader '+me.reader;
+ srvStatus('ok','connecting to the server…');
+ await serverPull(true); setInterval(()=>serverPull(false),30000);}
+function when(t){t=String(t||''); return t.slice(0,10)===now().slice(0,10)?t.slice(11,16):t.slice(0,16)}
+function alsoText(sc){const lh=sc.lineHelp||{}; return '<div class="alsotext">'+String(sc.text).replace(/\s+$/,'').split('\n').map((l,i)=>{const f=lh[i+1]; const m=f?['M','C','G','X'].filter(k=>f[k]).join(''):''; return '<div class="hl"><span class="n">'+(m?m+' ':'')+(i+1)+'</span><span class="t">'+esc(l)+'</span></div>'}).join('')+'</div>'}
+function renderAlso(){const el=$('also'); if(!el) return; if(!SRV||!cur.no||!cur.sid){el.style.display='none';return}
+ const k=String(cur.no), rows=[];
+ Object.keys(OTHERS).sort().forEach(rd=>{const ds=(OTHERS[rd].deeds||{})[k], sc=ds&&ds.scans&&ds.scans[cur.sid]; if(sc&&String(sc.text||'').trim()) rows.push({rd,sc})});
+ el.style.display='block';
+ if(!rows.length){el.innerHTML='<span class="sl">Also read by: no other reader has text on this scan yet'+(srvPulled?' (checked '+srvPulled+')':'')+'.</span>';return}
+ el.innerHTML='<b>Also read by</b> <span class="sl">read-only; checked '+esc(srvPulled)+', every 30 seconds</span>'+rows.map(({rd,sc})=>{const n=String(sc.text).replace(/\s+$/,'').split('\n').length, open=alsoOpen.has(rd);
+  return '<div class="alsorow"><b>'+esc(rd)+'</b> &middot; '+n+' line'+(n===1?'':'s')+' &middot; last saved '+esc(when(sc.t))+'<button data-also="'+esc(rd)+'">'+(open?'Hide':'Show')+' '+esc(rd)+'’s text</button>'+(open?alsoText(sc):'')+'</div>'}).join('');
+ el.querySelectorAll('[data-also]').forEach(b=>b.addEventListener('click',()=>{const r=b.dataset.also; if(alsoOpen.has(r)) alsoOpen.delete(r); else alsoOpen.add(r); renderAlso()}));}
+
 /* ---------- start ---------- */
 $('who').addEventListener('change',()=>{S.ui.lastReader=reader(); persist(); openDeed(cur.no,cur.sid);});
 $('helpbtn').addEventListener('click',()=>$('help').style.display='block');
@@ -737,5 +808,6 @@ if(D.sample) document.body.insertAdjacentHTML('afterbegin','<p class="warn" styl
 if(!DEEDS.length){document.body.insertAdjacentHTML('afterbegin','<p class="warn" style="padding:10px">The deed data did not load. Open this form in Chrome from the deed-reader folder (double-click it, or Ctrl+O in Chrome). The Claude app’s own browser pane cannot read the data file or the scans from disk. If it is open in Chrome already, check that data/deed_data.js or sample/sample_data.js is there.</p>');}
 else {renderList(); openDeed(S.ui.lastDeed&&BYNO[S.ui.lastDeed]?S.ui.lastDeed:FIRST,S.ui.lastScan);}
 if(!S.ui.helpClosed) $('help').style.display='block';
-window.DR={S:()=>S,exportMd,mergeState,importText,scanTxt,queryText,cur}; // for testing
+if(DEEDS.length) serverStart();
+window.DR={S:()=>S,exportMd,mergeState,importText,scanTxt,queryText,cur,srv:()=>({SRV,OTHERS,srvSent})}; // for testing
 </script></body></html>

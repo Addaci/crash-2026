@@ -4,12 +4,23 @@ The history of the form (`deed_reader.html`) and its data builder (`build_deed_d
 
 ## Contents
 
+- [2.1, 26 November 2026](#21-26-november-2026)
 - [2.0, 22–25 November 2026](#20-2225-november-2026)
 - [1.3, 13 November 2026](#13-13-november-2026)
 - [1.2, 13 November 2026](#12-13-november-2026)
 - [1.1, 11–12 November 2026](#11-1112-november-2026)
 - [1.0, 11 November 2026](#10-11-november-2026)
 - [Saved work across versions](#saved-work-across-versions)
+
+## 2.1, 26 November 2026
+
+Team-server mode, for a reading team working from one copy of the data and scans on a server (`server.py`, version 0.1, added the same day; decisions D7 to D10 and D12 of 26 November 2026, proposed by Claude Opus 5.5, High, agreed by Colin Greenstreet). Opened from a file, the form behaves exactly as 2.0.
+
+- **Server mode** is found at start by asking the server who the reader is (`/api/me`). Without a server, nothing changes.
+- **The reader's name comes from their personal link** and the Transcriber box is locked (D7).
+- **Saving:** work is kept in the browser as before and also sent to the server, at most every 5 seconds and only the deeds that changed. The server appends every save to the reader's own log and overwrites nothing (D8). The status line says "kept on the server HH:MM", or warns when the server cannot be reached; the browser copy still holds the work. On opening, the server's copy is merged with the browser's (newer wins, nothing deleted), so work not yet sent is not lost.
+- **Also read by** (D9): under the transcription, the other readers with text on the open scan, their line count and last save; *Show* opens their text, numbered and with their help flags, read-only. Other readers' work is fetched every 30 seconds, kept apart from the reader's own and never written back; it is not in *Export all*.
+- *Export all*, *Import*, the working folder and *Ask a model* (copy for a model's chat) are unchanged. Asking a model through the server (D11) is not built.
 
 ## 2.0, 22–25 November 2026
 

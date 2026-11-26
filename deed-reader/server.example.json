@@ -1,5 +1,5 @@
 {
- "_about": "Settings for server.py. Copy to server.local.json (never committed; Git ignores *.local.json via config.local.* only, so keep it outside the repository on the cluster). Paths are relative to this file unless absolute; ~ and $VARS are expanded.",
+ "_about": "Settings for server.py. Copy to server.local.json (Git ignores it; on the cluster keep it in your home folder, outside the shared workspace). Paths are relative to this file unless absolute; ~ and $VARS are expanded.",
  "bind": "127.0.0.1",
  "port": 8765,
  "form_dir": ".",
