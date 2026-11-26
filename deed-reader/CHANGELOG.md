@@ -21,6 +21,8 @@ Team-server mode, for a reading team working from one copy of the data and scans
 - **Saving:** work is kept in the browser as before and also sent to the server, at most every 5 seconds and only the deeds that changed. The server appends every save to the reader's own log and overwrites nothing (D8). The status line says "kept on the server HH:MM", or warns when the server cannot be reached; the browser copy still holds the work. On opening, the server's copy is merged with the browser's (newer wins, nothing deleted), so work not yet sent is not lost.
 - **Also read by** (D9): under the transcription, the other readers with text on the open scan, their line count and last save; *Show* opens their text, numbered and with their help flags, read-only. Other readers' work is fetched every 30 seconds, kept apart from the reader's own and never written back; it is not in *Export all*.
 - *Export all*, *Import*, the working folder and *Ask a model* (copy for a model's chat) are unchanged. Asking a model through the server (D11) is not built.
+- `test_server.py` checks the server on the sample deeds (13 checks). Its first run found that the access log kept each reader's token from the first visit; the server now writes `[token]` in its place.
+- How the server runs on the Graz cluster, and what it changes against the form opened from a file: [`docs/deed-reader-on-the-cluster.md`](../docs/deed-reader-on-the-cluster.md), rewritten the same day.
 
 ## 2.0, 22–25 November 2026
 

@@ -37,6 +37,7 @@ Beside each scan the form shows the archive's index record, machine text (HTR), 
 | `server.py` | The team server (version 0.1): one copy of the form, data and scans for a reading team, with every reader's work kept on the server. See [Running it as a team server](#running-it-as-a-team-server). |
 | `make_tokens.py` | Makes one personal link (token) per reader for the server. |
 | `server.example.json` | The server's settings, with notes. Copy it to `server.local.json`. |
+| `test_server.py` | Runs the server on the sample deeds with two invented readers and checks refusals, the personal link, saving, restarts, private files and that no token is logged (13 checks). |
 | `CHANGELOG.md` | Versions 1.0 to 1.3 (11–13 November 2026), 2.0 and 2.1. |
 
 Standard library Python only; Chrome for the form (the Claude app's own browser pane cannot open local images).

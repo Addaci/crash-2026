@@ -26,6 +26,7 @@ import json
 import mimetypes
 import os
 import posixpath
+import re
 import socket
 import sys
 import threading
@@ -171,7 +172,8 @@ def make_handler(cfg, store, tokens):
         sys_version = ""
 
         def log_message(self, fmt, *args):
-            line = "%s %s %s\n" % (now(), self.address_string(), fmt % args)
+            msg = re.sub(r"([?&]t=)[^&\s\"]*", r"\1[token]", fmt % args)  # never a token in the log
+            line = "%s %s %s\n" % (now(), self.address_string(), msg)
             with log_lock:
                 with open(cfg.log_file, "a", encoding="utf-8") as f:
                     f.write(line)
