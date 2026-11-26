@@ -1,0 +1,19 @@
+{
+ "_about": "Settings for server.py. Copy to server.local.json (never committed; Git ignores *.local.json via config.local.* only, so keep it outside the repository on the cluster). Paths are relative to this file unless absolute; ~ and $VARS are expanded.",
+ "bind": "127.0.0.1",
+ "port": 8765,
+ "form_dir": ".",
+ "data_file": "data/deed_data.js",
+ "store_dir": "server-store/readings",
+ "access_log": "server-store/access.log",
+ "tokens_file": "~/deedreader_tokens.json",
+ "scan_mounts": {
+  "/amsterdam-notarial-hopper/english-1640-1680/": "path/to/english-1640-1680"
+ },
+ "_notes": {
+  "bind": "127.0.0.1 on a laptop; 0.0.0.0 in a cluster job, so the tunnel through the head node can reach it.",
+  "port": "Not 8080 and not 21800-21899 (reserved on DHinfra).",
+  "scan_mounts": "URL prefix -> folder. The prefix is where the scan paths in the data file land when the browser resolves them against /deed_reader.html (leading ../ steps stop at the root).",
+  "tokens_file": "Made by make_tokens.py. Keep it in your home folder, readable by you only, never in the shared workspace or the repository."
+ }
+}
