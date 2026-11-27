@@ -2,7 +2,10 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Deed Reader</title>
 <!--
-Deed Reader 2.0 (deed-reader/deed_reader.html), 22 November 2026.
+Deed Reader 2.1 (deed-reader/deed_reader.html), 26 November 2026; 2.0 of 22 November 2026.
+2.1 adds team-server mode: opened from server.py, the reader's name comes from their personal link,
+work is also kept on the server, and other readers' work on the open scan is shown read-only
+("Also read by"). Opened from a file, the form works exactly as 2.0.
 A form for reading and transcribing deeds from their scans, beside the archive's index record,
 machine text (HTR), translations and questions to a model, with a record of every kind of help used.
 Made from form v1.3 of 13 November 2026 by an exact
@@ -132,11 +135,18 @@ table.ent th[title]{cursor:help;text-decoration:underline dotted}
 .slayer{font-size:11px;padding:0 5px;border-radius:2px;color:#fff;background:#6b645a}.slayer.ly-ph{background:#2f6b3a}.slayer.ly-htr{background:#1f4e79}.slayer.ly-tr,.slayer.ly-syn{background:#7a3b1e}
 .svar{font-size:11px;color:var(--warn)}.hl.hit,.syn .hit{background:#ffe9a8 !important;transition:background .4s}
 .syn{padding:4px 14px 14px;font-size:14px;line-height:1.5}.syn h4{margin:12px 0 4px;font-size:13px;font-variant:small-caps;letter-spacing:.04em;color:var(--accent);font-weight:normal}.syn p{margin:0 0 8px}
+/* 2.1: team server, "Also read by" */
+#also{display:none;border-top:1px solid var(--rule);max-height:34%;overflow:auto;padding:5px 10px;background:#f1f5f9;font-size:12.5px}
+#also .alsorow{padding:3px 0;border-bottom:1px dotted var(--rule)}#also .alsorow:last-child{border-bottom:0}
+#also button{padding:1px 6px;font-size:12px;margin-left:4px}
+#also .alsotext{margin:4px 0 2px;background:#fff;border:1px solid var(--rule);border-radius:3px;font:14px/1.5 Cambria,Georgia,serif;padding:3px 0}
+#also .alsotext .n{width:52px}
+#who:disabled{background:#efe9dc;color:var(--ink);opacity:1}
 </style></head><body>
 <header>
  <button id="togglelist" title="Show or hide the deed list">Deeds &#9776;</button>
  <h1><span id="formtitle">Deed Reader</span> <span id="deedtitle"></span></h1>
- <span class="prep">Deed Reader 2.0 &middot; data built <span id="built"></span></span>
+ <span class="prep">Deed Reader 2.1 &middot; data built <span id="built"></span><span id="srvmode"></span></span>
  <span class="sp"></span>
  <label class="sl">Transcriber <input id="who" type="text" size="9" value="" placeholder="your name"></label>
  <button id="folderbtn" title="Save each deed as a file in the deed-reader folder (Chrome asks once)">Connect working folder</button>
@@ -202,13 +212,14 @@ table.ent th[title]{cursor:help;text-decoration:underline dotted}
    </div>
    <div id="editor"><div id="gutter">1</div><textarea id="ta" spellcheck="false" placeholder="As written. One manuscript line per text line. Original spelling; abbreviations as written (A^{o}, voorn.); [?] after a doubtful word; [illegible]; ~~deleted~~; \interlined/; [margin] on its own line. Saved in this browser as you type."></textarea></div>
    <div id="mt"></div>
+   <div id="also"></div>
    <div class="tools" style="border-top:1px solid var(--rule);border-bottom:0">
     <button id="showmt" title="Shows the HTR under your text, numbered, for checking line by line. The HTR tab shows it with its full provenance.">Show HTR below my text</button>
     <button id="showcr">Show model reading (I)</button>
     <span class="sp"></span>
     <button id="savetxt" class="primary" title="Write this scan's transcription as a .txt with a header naming deed, scan, transcriber, date and the record of help">Save scan .txt</button>
    </div>
-   <div class="status"><span id="lines">0 lines</span><span class="rec" id="helprec"></span><span id="saved">kept in this browser</span></div>
+   <div class="status"><span id="lines">0 lines</span><span class="rec" id="helprec"></span><span id="saved">kept in this browser</span><span id="srvsaved"></span></div>
   </div>
   <div class="rpanel" id="rp-htr"></div>
   <div class="rpanel" id="rp-deed"></div>
@@ -218,16 +229,17 @@ table.ent th[title]{cursor:help;text-decoration:underline dotted}
  </div>
 </main>
 <div id="help">
- <h2>How this form works (2.0)</h2>
+ <h2>How this form works (2.1)</h2>
  <ol>
   <li><b>Pick a deed</b> on the left<span id="helpdeeds"></span>. Its scans are the tabs above the image. Use <i>left half / right half</i> for two-page openings.</li>
   <li><b>Transcribe</b> on the right: one manuscript line per text line, spelling as written. The toolbar inserts the marks and Dutch letters.</li>
   <li><b>Help is welcome and recorded.</b> For the line the cursor is on, tick <b>M</b> (machine text used), <b>C</b> (model consulted), <b>G</b> (glossary or dictionary), or <b>X</b> (not read in the ink). Showing the machine text is recorded with its time. A line you read in the ink is P-H, with the help recorded beside it; a line marked X is not.</li>
   <li><b>HTR</b> (the tab beside Transcribe): the machine text of the scan on the left, where it is on disk, with who made it, by what model, when and how it was fetched. It is better than nothing for Dutch, French and other hands, and a check on your own reading; it is not a transcription (basis P-MUC). <i>Show HTR below my text</i> puts it under your text, numbered. It is read-only: <i>fix</i> (on a line, on hover) keeps a correction of a small glitch beside the original, with your name and the time; the file itself is never changed. Deeds with HTR are marked &ldquo;HTR&rdquo; in the list. <b>Translation</b>: in the HTR tab, choose <i>HTR + translation</i> (each line under its Dutch line) or <i>Synthesis (deed)</i>, and your language. Translations are a model&rsquo;s (basis I), made as files on request in a model&rsquo;s chat, and say whether they are still current. The grey bar between the image and the right-hand side can be dragged; double-click it to reset. <i>A− / A+</i> in the HTR tab change the size of the Dutch and English there only.</li>
   <li><b>Search</b> (tab): this deed or all deeds; choose the layers (your transcriptions, HTR, translation, synthesis, notes and entities, the index); <i>spellings</i> also finds near spellings and the known variants listed in the data. Exact hits come first, then ink-based layers first. Click a hit to open the deed, scan and line.</li>
-  <li><b>Ask a model</b>: draw a box on the image round the words in doubt (<i>Draw box</i>), then <i>Ask a model about this line</i> and choose the model from the list. The question goes to the clipboard (paste it into that model&rsquo;s chat) and to the log in the <i>Ask a model</i> tab, with the model&rsquo;s name. Paste the answer back there and type your ruling. For many questions: <i>Save for a batch of questions</i>, then <i>Write query file</i> for one model; that model writes an answer file, which you import.</li>
+  <li><b>Ask a model</b>: draw a box on the image round the words in doubt (<i>Draw box</i>), then <i>Ask a model about this line</i> and choose the model from the list. The question goes to the clipboard (paste it into that model&rsquo;s chat) and to the log in the <i>Ask a model</i> tab, with the model&rsquo;s name. Paste the answer back there and type your ruling. For many questions: <i>Save for a batch of questions</i>, then <i>Write query file</i> for one model; that model writes an answer file, which you import. On the team server, the cluster&rsquo;s own models (marked <i>cluster</i> in the list) are asked by the server itself: choose one and click <i>Ask &hellip; now</i>; the box is cut out of the scan and sent with the question, and the answer arrives in the <i>Ask a model</i> tab, credited to that model.</li>
   <li><b>Deed: index &amp; notes</b> holds the archive's index record (basis A, never overwritten), your own readings of language, type and date, English notes on the whole deed, <b>page notes</b> (one box per scan) and the entity check table. To add an entity, select its words in the text and click <i>Selection &rarr; entity</i> in the line bar; then choose its kind.</li>
   <li><b>Saving.</b> Everything is kept in this browser as you type. <i>Connect working folder</i> (pick the <code>deed-reader</code> folder) saves each deed as a file in <code>readings/&lt;transcriber&gt;/</code>. Without it, <i>Export all</i> and <i>Save scan .txt</i> go to Downloads: move them into <code>deed-reader/exports/</code>. These folders stay on your computer or the cluster and are never committed.</li>
+  <li><b>Team server</b> (when the form is opened from your personal link, not from a file): your name comes from the link and cannot be changed; your work is kept in this browser and also on the server, where every save is added and nothing is overwritten (the status line says when). Under your transcription, <i>Also read by</i> lists the other readers with text on the open scan; <i>Show</i> opens their text, read-only. You never change their work, nor they yours.</li>
  </ol>
  <button id="helpclose" class="primary">Close</button>
 </div>
@@ -258,7 +270,7 @@ function blank(){return {schema:'deed-reader-1.0',created:now(),readers:{},ui:{}
 function loadState(){try{S=JSON.parse(localStorage.getItem(SKEY)||'null')}catch(e){S=null} if(!S||!S.readers) S=blank(); S.ui=S.ui||{};}
 let saveTimer=null;
 function persist(){clearTimeout(saveTimer);saveTimer=setTimeout(persistNow,300)}
-function persistNow(){clearTimeout(saveTimer);try{localStorage.setItem(SKEY,JSON.stringify(S));$('saved').textContent='kept in this browser '+now().slice(11,16)}catch(e){$('saved').innerHTML='<span class="warn">browser storage full or blocked: Export all now</span>'} folderAutosave();}
+function persistNow(){clearTimeout(saveTimer);try{localStorage.setItem(SKEY,JSON.stringify(S));$('saved').textContent='kept in this browser '+now().slice(11,16)}catch(e){$('saved').innerHTML='<span class="warn">browser storage full or blocked: Export all now</span>'} folderAutosave(); serverQueue();}
 function reader(){return ($('who').value.trim()||'anon')}
 function R(){const w=reader(); if(!S.readers[w]) S.readers[w]={deeds:{},queries:[]}; return S.readers[w]}
 function DS(no){const r=R(); const k=String(no); if(!r.deeds[k]) r.deeds[k]={seen:{},notes:'',entities:[],scans:{}}; return r.deeds[k]}
@@ -312,6 +324,7 @@ function openScan(sid){
  $('ta').value=sc.text; prevLines=sc.text.split('\n'); $('mt').style.display='none'; askClose();
  refreshEditor(); updateHelpButtons(); markPageNote();
  cur.htrIdx=0; if($('rp-htr').classList.contains('show')) renderHtr(true);
+ renderAlso();
 }
 /* image view */
 function applyView(){const im=$('img'); if(!im.naturalWidth) return; const w=im.naturalWidth*cur.zoom/100, h=im.naturalHeight*cur.zoom/100; im.style.width=w+'px'; im.style.height=h+'px';
@@ -589,10 +602,15 @@ function setAskModel(m){S.ui.askModel=m; persist();}
 function modelOptions(){const m=askModel(); return MODELS.map(x=>'<option'+(x===m?' selected':'')+'>'+esc(x)+'</option>').join('')}
 function qModel(q){return q.model||'model not recorded'}
 function askRegionText(){$('ak-region').innerHTML=cur.region?'Box on the image: x '+cur.region.x+', y '+cur.region.y+', w '+cur.region.w+', h '+cur.region.h+' (pixels of the image file). It goes with this question.':'<span class="warn">No box drawn.</span> The model can still find the line, but a box (Draw box, then drag on the image) makes the crop exact.'}
-$('ak-model').addEventListener('change',e=>setAskModel(e.target.value));
+$('ak-model').addEventListener('change',e=>{setAskModel(e.target.value); askButtons();});
+// D11 (27 Nov 2026): the cluster's models, which the team server asks itself; label -> model id, filled from /api/me
+var CLUSTER={}; const COPYLABEL=$('ak-copy').textContent, COPYTITLE=$('ak-copy').title;
+function askButtons(){const b=$('ak-copy'), c=CLUSTER[askModel()];
+ b.textContent=c?'Ask '+askModel()+' now':COPYLABEL;
+ b.title=c?'The team server sends this question, with the box cut out of the scan (the whole scan if no box is drawn), to this model on the cluster. The answer arrives in the Ask a model tab, credited to the model. Nothing goes to the clipboard.':COPYTITLE;}
 function askOpen(){$('ak-model').innerHTML=modelOptions(); const l=curLine(); const line=ta.value.split('\n')[l-1]||''; const sel=ta.value.slice(ta.selectionStart,ta.selectionEnd);
  $('ak-deed').textContent=cur.no; $('ak-scan').textContent=cur.sid; $('ak-line').textContent=l; $('ak-text').textContent=line||'(empty line)';
- $('ak-words').value=sel&&!sel.includes('\n')?sel:''; $('ak-q').value=''; $('askbox').style.display='block'; growQ(); askRegionText(); $('askbox').dataset.line=l;}
+ $('ak-words').value=sel&&!sel.includes('\n')?sel:''; $('ak-q').value=''; $('askbox').style.display='block'; growQ(); askRegionText(); $('askbox').dataset.line=l; askButtons();}
 function askClose(){$('askbox').style.display='none'}
 $('askbtn').addEventListener('click',askOpen); $('ak-cancel').addEventListener('click',askClose);
 function growQ(){const q=$('ak-q'); q.style.height='auto'; q.style.height=(q.scrollHeight+2)+'px';}
@@ -610,15 +628,56 @@ function makeQuery(){const l=+$('askbox').dataset.line, s=scan(), im=$('img');
   model:askModel(),line:l,line_text:ta.value.split('\n')[l-1]||'',words:$('ak-words').value.trim(),question:$('ak-q').value.trim(),region:cur.region?Object.assign({},cur.region):null,status:'open',answers:[],ruling:null};
  q.text=queryText(q); R().queries.push(q); setFlag(l,'C',true); const sc=SC(cur.no,cur.sid); sc.events.push({t:now(),reader:reader(),kind:'query',detail:q.id+' line '+l+' to '+q.model}); persist(); askClose(); renderAsk(); return q;}
 async function copyText(t){try{await navigator.clipboard.writeText(t);return true}catch(e){const x=document.createElement('textarea');x.value=t;document.body.appendChild(x);x.select();let ok=false;try{ok=document.execCommand('copy')}catch(_){}x.remove();return ok}}
-$('ak-copy').addEventListener('click',async()=>{const q=makeQuery(); const ok=await copyText(q.text); q.copied=ok?now():null; if(ok) q.status='asked'; persist(); renderAsk(); $('saved').innerHTML=ok?'<span class="flash">question '+esc(q.id)+' copied: paste it into the chat of '+esc(q.model)+'</span>':'<span class="warn">could not copy: open the Ask a model tab and copy the question from there</span>';});
+// D11: cut the box (with a small margin) out of the scan as shown, at a size a model reads well
+function cropScan(region){const im=$('img'); if(!im||!im.naturalWidth) return null; const W=im.naturalWidth, H=im.naturalHeight;
+ let x=0,y=0,w=W,h=H; if(region){const m=12; x=Math.max(0,Math.round(region.x-m)); y=Math.max(0,Math.round(region.y-m)); w=Math.min(W-x,Math.round(region.w+2*m)); h=Math.min(H-y,Math.round(region.h+2*m));}
+ if(w<1||h<1) return null; const big=Math.max(w,h); let s=1; if(big>3072) s=3072/big; else if(region&&big<768) s=Math.min(3,768/big); // a one-page box goes at full resolution
+ const c=document.createElement('canvas'); c.width=Math.max(1,Math.round(w*s)); c.height=Math.max(1,Math.round(h*s));
+ const g=c.getContext('2d'); g.imageSmoothingQuality='high'; g.drawImage(im,x,y,w,h,0,0,c.width,c.height);
+ try{return c.toDataURL('image/jpeg',0.9)}catch(e){return null}}
+async function askCluster(){const label=askModel(), id=CLUSTER[label]; const q=makeQuery(); const img=cropScan(q.region);
+ q.status='sent'; q.sent=now(); q.cluster=id; q.sent_image=img?(q.region?'box':'whole scan'):'none'; delete q.error; persist(); renderAsk();
+ $('saved').innerHTML='<span class="flash">asking '+esc(label)+' ('+esc(q.id)+')&hellip; the answer will appear in the Ask a model tab</span>';
+ // What a cluster model is sent: one line of context, a note on the image, and the reader's own question.
+ // The box's position and the file path describe the full scan, which the model does not see, so they are left out;
+ // with no question of the reader's, the form's standard instruction (for words in doubt) goes instead.
+ // The log keeps exactly the text sent.
+ const d=BYNO[q.deed]||{};
+ const ctx='Deed '+q.deed+' ('+(d.type||'')+', '+(d.date||'')+' per index), '+(U.collection_short?U.collection_short+' ':'')+'inv. '+(d.inventory||'')+', language (index) '+(d.language||'')+'.';
+ const imgNote='Image attached: '+(img?(q.region?'a box cut out of the scan, with a small margin.':'the whole scan, reduced.'):'none (the scan could not be read in this browser).');
+ const question=q.question?[ctx,imgNote,q.question].join('\n'):q.text.split('\n').filter(l=>!/^(Scan |Region: )/.test(l)).concat([imgNote]).join('\n');
+ q.text=question; persist(); renderAsk();
+ let res=null, j=null; try{res=await fetch('/api/ask',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:q.id,model:id,question:question,image:img})}); j=await res.json().catch(()=>null);}catch(e){j={error:'the team server could not be reached ('+e.message+')'}}
+ if(!res||res.status!==202){askFailed(q.id,(j&&j.error)||('the server answered '+(res?res.status:'nothing'))); return;}
+ collectAnswer(q.id);}
+// D11: the server keeps each answer and the browser collects it, so no connection is held open while the model thinks
+const collecting=new Set();
+function myQuery(qid){const r=SRV&&S.readers[SRV.reader]; return r?(r.queries||[]).find(x=>x.id===qid):null}
+function askFailed(qid,msg){const q=myQuery(qid); if(!q) return; q.status='open'; q.error=msg; persist(); renderAsk(); $('saved').innerHTML='<span class="warn">'+esc(qModel(q))+' did not answer: '+esc(msg)+'</span>';}
+async function collectAnswer(qid){if(collecting.has(qid)) return; collecting.add(qid); const t0=Date.now();
+ try{while(Date.now()-t0<15*60*1000){await new Promise(r=>setTimeout(r,4000)); let res,j;
+   try{res=await fetch('/api/ask?id='+encodeURIComponent(qid),{cache:'no-store',credentials:'same-origin'}); j=await res.json().catch(()=>null);}catch(e){continue} // a lost check is tried again
+   if(res.status===202) continue;
+   if(res.status===404){askFailed(qid,'the server has no record of this question (it may have been restarted while asking): ask again'); return;}
+   if(res.status!==200||!j){askFailed(qid,'the server answered '+res.status); return;}
+   const q=myQuery(qid); if(!q) return; const label=qModel(q);
+   if(j.error){askFailed(qid,j.error); return;}
+   const text=j.answer||('[No answer text: the model stopped ('+(j.finish||'reason not given')+') before it answered.'+(j.reasoning?' Its reasoning so far:]\n'+String(j.reasoning).slice(0,4000):']'));
+   if(!(q.answers||[]).some(a=>a.source==='server'&&a.t===j.t)) q.answers.push({text:text,basis:'R',by:label+' (asked through the team server by '+reader()+')',t:j.t||now(),source:'server',finish:j.finish||null,usage:j.usage||null,seconds:j.seconds||null});
+   delete q.error; if(q.status!=='ruled') q.status='answered'; SC(q.deed,q.scan).events.push({t:now(),reader:reader(),kind:'answer_server',detail:q.id+' from '+label});
+   persist(); renderAsk(); $('saved').innerHTML='<span class="flash">'+esc(label)+' answered '+esc(q.id)+': see the Ask a model tab</span>'; return;}
+  askFailed(qid,'no answer after 15 minutes');}
+ finally{collecting.delete(qid)}}
+function resumeCollecting(){const r=SRV&&S.readers[SRV.reader]; if(!r) return; (r.queries||[]).filter(q=>q.status==='sent'&&q.cluster).forEach(q=>collectAnswer(q.id));}
+$('ak-copy').addEventListener('click',async()=>{if(CLUSTER[askModel()]) return askCluster(); const q=makeQuery(); const ok=await copyText(q.text); q.copied=ok?now():null; if(ok) q.status='asked'; persist(); renderAsk(); $('saved').innerHTML=ok?'<span class="flash">question '+esc(q.id)+' copied: paste it into the chat of '+esc(q.model)+'</span>':'<span class="warn">could not copy: open the Ask a model tab and copy the question from there</span>';});
 $('ak-log').addEventListener('click',()=>{const q=makeQuery(); $('saved').innerHTML='<span class="flash">question '+esc(q.id)+' logged for the next query file</span>';});
 let askFilter='this deed';
 function renderAsk(){const r=R(); const qs=r.queries.filter(q=>askFilter==='all'||(askFilter==='open'?['open','sent','asked'].includes(q.status):q.deed===cur.no));
  const nOpen=openFor(askModel()).length; $('qcount').textContent=r.queries.length?'('+r.queries.length+')':'';
  let h='<div class="sect"><h3>Questions to a model · '+esc(reader())+'</h3>Show: '+['this deed','open','all'].map(f=>'<button class="af'+(f===askFilter?' on':'')+'" data-f="'+f+'">'+f+'</button>').join(' ')+
   '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><label class="sl">Model <select id="askmodel" title="The model for the next question and for the query file">'+modelOptions()+'</select></label><button id="writeq" class="primary"'+(nOpen?'':' disabled')+'>Write query file for this model ('+nOpen+' not yet sent)</button><button id="impa">Import answer file&hellip;</button><input id="impafile" type="file" accept=".json" style="display:none"></div>'+
-  '<p class="sl">Single question: it is already on your clipboard; paste it into that model\u2019s chat, then paste the answer into its box below. Each question and answer names its model. Many questions: choose the model, <i>Write query file</i>, then ask that model to read it from <code>queries/</code> and write an answer file into <code>answers/</code>; import that here.</p></div><div class="sect">';
- h+=qs.length?qs.slice().reverse().map(q=>'<div class="q" data-id="'+q.id+'"><span class="st">'+esc(q.status)+'</span><b>'+esc(q.id)+'</b> · '+esc(qModel(q))+' · deed '+q.deed+', scan '+esc(q.scan.slice(-6))+', line '+q.line+' <button class="goq">go to line</button> <button class="cpq">copy again</button><pre>'+esc(q.text)+'</pre>'+
+  (CLUSTER[askModel()]?'<p class="sl"><b>'+esc(askModel())+'</b> is on the cluster: the team server asks it for you and its answer appears under the question here, usually within a minute or two (a whole page can take several). A question still waiting shows <i>sent</i>.</p>':'')+'<p class="sl">Clipboard route (other models): a single question is already on your clipboard; paste it into that model\u2019s chat, then paste the answer into its box below. Each question and answer names its model. Many questions: choose the model, <i>Write query file</i>, then ask that model to read it from <code>queries/</code> and write an answer file into <code>answers/</code>; import that here.</p></div><div class="sect">';
+ h+=qs.length?qs.slice().reverse().map(q=>'<div class="q" data-id="'+q.id+'"><span class="st">'+esc(q.status)+'</span><b>'+esc(q.id)+'</b> · '+esc(qModel(q))+' · deed '+q.deed+', scan '+esc(q.scan.slice(-6))+', line '+q.line+' <button class="goq">go to line</button> <button class="cpq">copy again</button><pre>'+esc(q.text)+'</pre>'+(q.error?'<p class="warn">Not answered: '+esc(q.error)+'</p>':'')+
   (q.answers||[]).map(a=>'<div><b>Answer</b> <span class="basis">'+esc(a.basis||'R')+'</span> <span class="sl">'+esc(a.by||'')+' · '+esc(a.t||'')+' · '+esc(a.source||'')+'</span><pre>'+esc(a.text)+(a.candidates&&a.candidates.length?'\n\nCandidates:\n'+a.candidates.map(c=>'- '+c.reading+' ('+(c.grade||'?')+'): '+(c.reason||'')).join('\n'):'')+(a.sources&&a.sources.length?'\n\nSources: '+a.sources.join(' ; '):'')+'</pre></div>').join('')+
   '<label class="sl">Paste the answer of '+esc(qModel(q))+' (clipboard route)</label><textarea class="pa"></textarea><button class="savea">Add answer</button>'+
   '<br><label class="sl">Your ruling, from the ink</label><textarea class="ru">'+esc(q.ruling?q.ruling.text:'')+'</textarea><button class="saver">Record ruling</button>'+(q.ruling?' <span class="sl">ruled '+esc(q.ruling.t)+'</span>':'')+'</div>').join(''):'<p class="sl">No questions yet for this view.</p>';
@@ -723,6 +782,65 @@ function importText(txt,fname){let j; try{j=JSON.parse(txt)}catch(e){alert('Not 
 $('importbtn').addEventListener('click',()=>$('importfile').click());
 $('importfile').addEventListener('change',e=>{const f=e.target.files[0]; if(f) f.text().then(t=>importText(t,f.name)); e.target.value='';});
 
+/* ---------- 2.1: team server (D7, D8, D9; 26 Nov 2026) ----------
+   Only when the form is served by server.py. The server says who the reader is (D7, from the token).
+   The reader's own work is kept in this browser as before and sent to the server, at most every
+   5 seconds and only the deeds that changed; the server appends every save (D8). Other readers' work
+   is fetched every 30 seconds and kept apart in OTHERS, shown read-only and never written back (D9). */
+var SRV=null, OTHERS={}, srvSent={}, srvSentQ=null, srvTimer=null, srvBusy=false, srvLast=0, srvPulled='', alsoOpen=new Set();
+function srvStatus(kind,msg){const el=$('srvsaved'); if(el) el.innerHTML=kind==='warn'?'<span class="warn">'+esc(msg)+'</span>':esc(msg)}
+function srvChanges(){const r=SRV&&S.readers[SRV.reader]; if(!r) return null; const deeds={}, sent={};
+ for(const k of Object.keys(r.deeds)){const j=JSON.stringify(r.deeds[k]); if(srvSent[k]!==j){deeds[k]=r.deeds[k]; sent[k]=j}}
+ const qj=JSON.stringify(r.queries||[]), body={deeds}; if(qj!==srvSentQ) body.queries=r.queries||[];
+ if(!Object.keys(deeds).length&&body.queries===undefined) return null;
+ return {body,sent,qj};}
+function serverQueue(){if(!SRV||srvTimer) return; srvTimer=setTimeout(serverSend,Math.max(800,5000-(Date.now()-srvLast)))}
+async function serverSend(){srvTimer=null; if(srvBusy){serverQueue();return} const c=srvChanges(); if(!c) return;
+ srvBusy=true; srvLast=Date.now();
+ try{const res=await fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(c.body)});
+  if(res.status===401){srvStatus('warn','the server no longer knows this browser: open your personal link again (your work is kept in this browser)');return}
+  if(!res.ok) throw new Error('HTTP '+res.status);
+  const j=await res.json(); Object.assign(srvSent,c.sent); if(c.body.queries) srvSentQ=c.qj;
+  srvStatus('ok','kept on the server '+String(j.saved||now()).slice(11,16));
+ }catch(e){srvStatus('warn','server not reached: kept in this browser only; trying again'); setTimeout(serverQueue,15000)}
+ finally{srvBusy=false}
+ if(srvChanges()) serverQueue();}
+window.addEventListener('pagehide',()=>{const c=srvChanges(); if(c&&navigator.sendBeacon) navigator.sendBeacon('/api/save',new Blob([JSON.stringify(c.body)],{type:'application/json'}))});
+async function serverPull(first){let st;
+ try{const res=await fetch('/api/state',{cache:'no-store',credentials:'same-origin'});
+  if(res.status===401){srvStatus('warn','the server no longer knows this browser: open your personal link again');return}
+  if(!res.ok) throw new Error('HTTP '+res.status); st=await res.json();}
+ catch(e){if(first) srvStatus('warn','server not reached: kept in this browser only'); return}
+ const all=st.readers||{}, mine=all[SRV.reader];
+ if(first){
+  if(mine){Object.keys(mine.deeds||{}).forEach(k=>srvSent[k]=JSON.stringify(mine.deeds[k])); srvSentQ=JSON.stringify(mine.queries||[]);
+   mergeState({readers:{[SRV.reader]:{deeds:mine.deeds||{},queries:mine.queries||[]}}});} // newer wins, nothing deleted: unsent work in this browser survives
+  srvStatus('ok','on the server as '+SRV.reader);
+  persistNow(); // sends anything this browser holds that the server has not
+  if(DEEDS.length) openDeed(cur.no||FIRST,cur.sid);}
+ OTHERS={}; Object.keys(all).forEach(rd=>{if(rd!==SRV.reader) OTHERS[rd]=all[rd]});
+ srvPulled=String(st.t||now()).slice(11,16); renderAlso();}
+async function serverStart(){if(!/^https?:$/.test(location.protocol)) return; // opened from a file: no server
+ let me; try{const res=await fetch('/api/me',{cache:'no-store',credentials:'same-origin'}); if(!res.ok) return; me=await res.json()}catch(e){return}
+ if(!me||!me.reader) return;
+ SRV=me; (me.ask_models||[]).forEach(m=>{if(m&&m.id&&m.label&&!MODELS.includes(m.label)){MODELS.push(m.label); CLUSTER[m.label]=m.id}});
+ const w=$('who'); w.value=me.reader; w.disabled=true; w.title='Your name comes from your personal link (team server); it cannot be changed here.';
+ // the form opened its first deed before the server answered; an untouched "anon" entry made then is dropped (one with any work in it is kept)
+ const an=S.readers.anon; if(an&&!(an.queries||[]).length&&!Object.values(an.deeds||{}).some(ds=>(ds.notes||'').trim()||(ds.entities||[]).length||Object.keys(ds.seen||{}).length||Object.values(ds.scans||{}).some(x=>(x.text||'').trim()||(x.events||[]).length||(x.notes||'').trim()))) delete S.readers.anon;
+ S.ui.lastReader=me.reader; $('srvmode').textContent=' · team server '+(me.server||'')+', reader '+me.reader;
+ srvStatus('ok','connecting to the server…');
+ await serverPull(true); resumeCollecting(); setInterval(()=>serverPull(false),30000);}
+function when(t){t=String(t||''); return t.slice(0,10)===now().slice(0,10)?t.slice(11,16):t.slice(0,16)}
+function alsoText(sc){const lh=sc.lineHelp||{}; return '<div class="alsotext">'+String(sc.text).replace(/\s+$/,'').split('\n').map((l,i)=>{const f=lh[i+1]; const m=f?['M','C','G','X'].filter(k=>f[k]).join(''):''; return '<div class="hl"><span class="n">'+(m?m+' ':'')+(i+1)+'</span><span class="t">'+esc(l)+'</span></div>'}).join('')+'</div>'}
+function renderAlso(){const el=$('also'); if(!el) return; if(!SRV||!cur.no||!cur.sid){el.style.display='none';return}
+ const k=String(cur.no), rows=[];
+ Object.keys(OTHERS).sort().forEach(rd=>{const ds=(OTHERS[rd].deeds||{})[k], sc=ds&&ds.scans&&ds.scans[cur.sid]; if(sc&&String(sc.text||'').trim()) rows.push({rd,sc})});
+ el.style.display='block';
+ if(!rows.length){el.innerHTML='<span class="sl">Also read by: no other reader has text on this scan yet'+(srvPulled?' (checked '+srvPulled+')':'')+'.</span>';return}
+ el.innerHTML='<b>Also read by</b> <span class="sl">read-only; checked '+esc(srvPulled)+', every 30 seconds</span>'+rows.map(({rd,sc})=>{const n=String(sc.text).replace(/\s+$/,'').split('\n').length, open=alsoOpen.has(rd);
+  return '<div class="alsorow"><b>'+esc(rd)+'</b> &middot; '+n+' line'+(n===1?'':'s')+' &middot; last saved '+esc(when(sc.t))+'<button data-also="'+esc(rd)+'">'+(open?'Hide':'Show')+' '+esc(rd)+'’s text</button>'+(open?alsoText(sc):'')+'</div>'}).join('');
+ el.querySelectorAll('[data-also]').forEach(b=>b.addEventListener('click',()=>{const r=b.dataset.also; if(alsoOpen.has(r)) alsoOpen.delete(r); else alsoOpen.add(r); renderAlso()}));}
+
 /* ---------- start ---------- */
 $('who').addEventListener('change',()=>{S.ui.lastReader=reader(); persist(); openDeed(cur.no,cur.sid);});
 $('helpbtn').addEventListener('click',()=>$('help').style.display='block');
@@ -737,5 +855,6 @@ if(D.sample) document.body.insertAdjacentHTML('afterbegin','<p class="warn" styl
 if(!DEEDS.length){document.body.insertAdjacentHTML('afterbegin','<p class="warn" style="padding:10px">The deed data did not load. Open this form in Chrome from the deed-reader folder (double-click it, or Ctrl+O in Chrome). The Claude app’s own browser pane cannot read the data file or the scans from disk. If it is open in Chrome already, check that data/deed_data.js or sample/sample_data.js is there.</p>');}
 else {renderList(); openDeed(S.ui.lastDeed&&BYNO[S.ui.lastDeed]?S.ui.lastDeed:FIRST,S.ui.lastScan);}
 if(!S.ui.helpClosed) $('help').style.display='block';
-window.DR={S:()=>S,exportMd,mergeState,importText,scanTxt,queryText,cur}; // for testing
+if(DEEDS.length) serverStart();
+window.DR={S:()=>S,exportMd,mergeState,importText,scanTxt,queryText,cur,srv:()=>({SRV,OTHERS,srvSent})}; // for testing
 </script></body></html>

@@ -4,12 +4,27 @@ The history of the form (`deed_reader.html`) and its data builder (`build_deed_d
 
 ## Contents
 
+- [2.1, 26 November 2026](#21-26-november-2026)
 - [2.0, 22–25 November 2026](#20-2225-november-2026)
 - [1.3, 13 November 2026](#13-13-november-2026)
 - [1.2, 13 November 2026](#12-13-november-2026)
 - [1.1, 11–12 November 2026](#11-1112-november-2026)
 - [1.0, 11 November 2026](#10-11-november-2026)
 - [Saved work across versions](#saved-work-across-versions)
+
+## 2.1, 26 November 2026
+
+**Added 27 November 2026 (server 0.2, decision D11):** on the team server, *Ask a model* can also ask the cluster's own models, DeepSeek V4.1 Flash and GLM 5.3 Flash, marked *cluster* in the model list. The server asks them itself: the form cuts the box (or the whole scan) out of the image and sends it with the question; the answer comes back into the Questions log, credited to the model, with its token counts. The API key is read only from the environment of the server's job (`DHINFRA_API_KEY`), never from a file, and never reaches a browser; without it the server offers the clipboard route alone, as before. The server's `ask.log` records who asked which model, when and at what cost, never the question. `test_server.py` now checks this against a pretend model service on the same computer (31 checks). The job script `run_server.slurm` is added, tested on the cluster the same morning. The first real question, to GLM 5.3 Flash on a Dutch deed, ran out of its 4,000-token allowance while still thinking; the allowance is now 32,768 tokens and the wait up to 10 minutes, enough for a whole page of transcription (both can be changed in the server's settings, `ask_max_tokens` and `ask_timeout`); a one-page box is sent at full resolution (up to 3,072 pixels); and when the reader writes a question, the form's standard instruction for words in doubt is left out. The second question, a whole page, took 136 seconds; the server sent its reply, but the browser never received it: a connection kept silent that long is dropped on the way. So the server now answers a question at once ("working"), asks the model in the background and keeps the answer in a file (`answers/<reader>/<question>.json`, beside the readings); the form collects it every few seconds, and picks up any question still waiting when the page is reopened. An answer survives a reload and a server restart, and one reader cannot collect another's. A cluster model is now sent only one line about the deed, a note on the image and the reader's question, and the log shows exactly that. After a test on the cluster, *DeepSeek V4.1 Flash, no thinking* is offered beside the other two: the same model with its thinking switched off, which DeepSeek allows and GLM does not.
+
+Team-server mode, for a reading team working from one copy of the data and scans on a server (`server.py`, version 0.1, added the same day; decisions D7 to D10 and D12 of 26 November 2026, proposed by Claude Opus 5.5, High, agreed by Colin Greenstreet). Opened from a file, the form behaves exactly as 2.0.
+
+- **Server mode** is found at start by asking the server who the reader is (`/api/me`). Without a server, nothing changes.
+- **The reader's name comes from their personal link** and the Transcriber box is locked (D7).
+- **Saving:** work is kept in the browser as before and also sent to the server, at most every 5 seconds and only the deeds that changed. The server appends every save to the reader's own log and overwrites nothing (D8). The status line says "kept on the server HH:MM", or warns when the server cannot be reached; the browser copy still holds the work. On opening, the server's copy is merged with the browser's (newer wins, nothing deleted), so work not yet sent is not lost.
+- **Also read by** (D9): under the transcription, the other readers with text on the open scan, their line count and last save; *Show* opens their text, numbered and with their help flags, read-only. Other readers' work is fetched every 30 seconds, kept apart from the reader's own and never written back; it is not in *Export all*.
+- *Export all*, *Import*, the working folder and *Ask a model* (copy for a model's chat) are unchanged. Asking a model through the server (D11) is not built.
+- `test_server.py` checks the server on the sample deeds (13 checks). Its first run found that the access log kept each reader's token from the first visit; the server now writes `[token]` in its place.
+- How the server runs on the Graz cluster, and what it changes against the form opened from a file: [`docs/deed-reader-on-the-cluster.md`](../docs/deed-reader-on-the-cluster.md), rewritten the same day.
 
 ## 2.0, 22–25 November 2026
 

@@ -28,6 +28,9 @@ test-set/
 .env
 *.key
 config.local.*
+server-store/
+server.local.json
+*_tokens.json
 
 # Python and editors
 __pycache__/
