@@ -402,6 +402,7 @@ class AskTest(ServerTest):
         self.assertEqual(content[0]["text"], "What is this word, please?")
         self.assertEqual(content[1]["image_url"]["url"], self.IMG)
         self.assertEqual(sent["body"]["model"], "glm-5.3-flash")
+        self.assertEqual(sent["body"]["max_tokens"], 32768, "room for thinking and a whole page")
 
     def test_21_empty_answer_returns_reasoning(self):
         code, r = self.ask(model="deepseek-v4.1-flash", question="think too long")
@@ -437,6 +438,7 @@ class AskTest(ServerTest):
         self.assertIn("model=glm-5.3-flash", ask_log)
         self.assertNotIn("What is this word", ask_log, "a question was written to the ask log")
         self.assertIn("Asking the cluster's models: on", "".join(self.outputs))
+        self.assertIn("up to 32768 tokens and 600 seconds", "".join(self.outputs))
 
 
 if __name__ == "__main__":

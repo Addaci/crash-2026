@@ -56,8 +56,8 @@ MAX_BODY = 20 * 1024 * 1024  # 20 MB per save
 ASK_MODELS = {"deepseek-v4.1-flash": "DeepSeek V4.1 Flash (cluster)",
               "glm-5.3-flash": "GLM 5.3 Flash (cluster)"}
 ASK_BASE_URL = "https://api.dhinfra.uni-graz.at/v1"
-ASK_MAX_TOKENS = 4000          # room for a reasoning model's thinking before its answer
-ASK_TIMEOUT = 180              # seconds to wait for one answer
+ASK_MAX_TOKENS = 32768         # room for a reasoning model's thinking and then a whole page of transcription
+ASK_TIMEOUT = 600              # seconds to wait for one answer (a long answer at about 100 tokens a second)
 ASK_MAX_QUESTION = 20000       # characters
 ASK_MAX_IMAGE = 8 * 1024 * 1024  # characters of the image's data URL
 
@@ -154,6 +154,8 @@ class Config:
         self.ask_log = p(c.get("ask_log", os.path.join(os.path.dirname(self.log_file), "ask.log")))
         self.ask_base_url = c.get("ask_base_url", ASK_BASE_URL).rstrip("/")
         self.ask_models = dict(c.get("ask_models") or ASK_MODELS)
+        self.ask_max_tokens = int(c.get("ask_max_tokens", ASK_MAX_TOKENS))
+        self.ask_timeout = int(c.get("ask_timeout", ASK_TIMEOUT))
 
 
 class Asker:
@@ -169,6 +171,8 @@ class Asker:
         self.base = cfg.ask_base_url
         self.models = cfg.ask_models if self.key else {}
         self.log_file = cfg.ask_log
+        self.max_tokens = cfg.ask_max_tokens
+        self.timeout = cfg.ask_timeout
         self.lock = threading.Lock()
 
     def on(self):
@@ -191,13 +195,13 @@ class Asker:
         if image:
             content.append({"type": "image_url", "image_url": {"url": image}})
         body = {"model": model, "messages": [{"role": "user", "content": content}],
-                "max_tokens": ASK_MAX_TOKENS, "temperature": 0.2}
+                "max_tokens": self.max_tokens, "temperature": 0.2}
         req = urllib.request.Request(self.base + "/chat/completions", data=json.dumps(body).encode("utf-8"),
                                      headers={"Content-Type": "application/json",
                                               "Authorization": "Bearer " + self.key}, method="POST")
         t0 = time.time()
         try:
-            with urllib.request.urlopen(req, timeout=ASK_TIMEOUT) as r:
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
                 res = json.loads(r.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             try:
@@ -416,7 +420,8 @@ def main():
     print("Readers with tokens: %s" % ", ".join(sorted({r for _, r in tokens})))
     print("Readings kept in: %s (%d readers so far)" % (cfg.store_dir, len(store.readers)))
     if asker.on():
-        print("Asking the cluster's models: on (%s)" % ", ".join(asker.models.values()))
+        print("Asking the cluster's models: on (%s); up to %d tokens and %d seconds an answer"
+              % (", ".join(asker.models.values()), asker.max_tokens, asker.timeout))
     else:
         print("Asking the cluster's models: off (no DHINFRA_API_KEY in this job's environment)")
     if cfg.bind == "127.0.0.1":
