@@ -331,6 +331,8 @@ class PretendModels(http.server.BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(n).decode("utf-8"))
         PretendModels.seen.append({"path": self.path, "auth": self.headers.get("Authorization"), "body": body})
         text = body["messages"][0]["content"][0]["text"]
+        if "be slow" in text:
+            time.sleep(2)
         if "please fail" in text:
             out, code = {"error": "overloaded"}, 503
         elif "think too long" in text:
@@ -373,11 +375,33 @@ class AskTest(ServerTest):
 
     IMG = "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
 
-    def ask(self, who="Anna", **body):
-        b = {"model": "glm-5.3-flash", "question": "What is this word?", "image": self.IMG}
+    N = [0]
+
+    def send(self, who="Anna", **body):
+        """POST a question; the server answers 202 at once (or refuses)."""
+        self.N[0] += 1
+        b = {"id": "Q-Test-%d" % self.N[0], "model": "glm-5.3-flash", "question": "What is this word?",
+             "image": self.IMG}
         b.update(body)
         code, _, raw = self.req("/api/ask", bearer=self.tok[who] if who else None, body=b)
-        return code, json.loads(raw) if raw[:1] == b"{" else raw
+        return b["id"], code, (json.loads(raw) if raw[:1] == b"{" else raw)
+
+    def collect(self, qid, who="Anna"):
+        code, _, raw = self.req("/api/ask?id=" + qid, bearer=self.tok[who])
+        return code, json.loads(raw)
+
+    def ask(self, who="Anna", **body):
+        """Send, then collect as the form does, until the answer is kept."""
+        qid, code, r = self.send(who, **body)
+        if code != 202:
+            return code, r
+        self.assertEqual(r["state"], "working")
+        for _ in range(100):
+            code, r = self.collect(qid, who)
+            if code != 202:
+                return code, r
+            time.sleep(0.1)
+        self.fail("no answer kept within 10 seconds")
 
     def test_05_reader_is_the_tokens(self):
         code, _, b = self.req("/api/me", bearer=self.tok["Anna"])
@@ -422,9 +446,41 @@ class AskTest(ServerTest):
 
     def test_23_service_failure_reported_without_the_key(self):
         code, r = self.ask(question="please fail")
-        self.assertEqual(code, 502)
+        self.assertEqual((code, r["http"], r["state"]), (200, 502, "done"))
         self.assertIn("503", r["error"])
         self.assertFalse(self.KEY in json.dumps(r))
+
+    def test_25_no_connection_held_while_the_model_works(self):
+        qid, code, r = self.send(question="be slow")
+        self.assertEqual((code, r["state"]), (202, "working"), "the server held the connection")
+        code, r = self.collect(qid)
+        self.assertEqual((code, r["state"]), (202, "working"))
+        self.assertEqual(self.send(id=qid, question="be slow")[1], 202, "asking again is harmless")
+        for _ in range(100):
+            code, r = self.collect(qid)
+            if code != 202:
+                break
+            time.sleep(0.1)
+        self.assertEqual((code, r["answer"], r["id"]), (200, "Strong: 'Barbados'.", qid))
+        self.assertEqual(sum(1 for s in PretendModels.seen if "be slow" in s["body"]["messages"][0]["content"][0]["text"]),
+                         1, "one question was put to the model twice")
+
+    def test_26_answers_are_the_askers_alone_and_survive_a_restart(self):
+        qid = self.send()[0]
+        for _ in range(100):
+            code, r = self.collect(qid)
+            if code == 200:
+                break
+            time.sleep(0.1)
+        self.assertEqual(self.collect(qid, who="Ben")[0], 404, "Ben collected Anna's answer")
+        type(self).stop()
+        type(self).start()
+        code, r = self.collect(qid)
+        self.assertEqual((code, r["answer"]), (200, "Strong: 'Barbados'."), "the answer was lost in a restart")
+        self.assertEqual(self.collect("Q-never-asked")[0], 404)
+        self.assertEqual(self.req("/api/ask?id=../../tokens", bearer=self.tok["Anna"])[0], 400)
+        self.assertEqual(self.send(id="")[1], 400)
+        self.assertEqual(self.send(id="../x")[1], 400)
 
     def test_24_key_never_printed_or_logged(self):
         self.ask()

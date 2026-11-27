@@ -636,17 +636,33 @@ function cropScan(region){const im=$('img'); if(!im||!im.naturalWidth) return nu
  const g=c.getContext('2d'); g.imageSmoothingQuality='high'; g.drawImage(im,x,y,w,h,0,0,c.width,c.height);
  try{return c.toDataURL('image/jpeg',0.9)}catch(e){return null}}
 async function askCluster(){const label=askModel(), id=CLUSTER[label]; const q=makeQuery(); const img=cropScan(q.region);
- q.status='sent'; q.sent=now(); q.sent_image=img?(q.region?'box':'whole scan'):'none'; persist(); renderAsk();
- $('saved').innerHTML='<span class="flash">asking '+esc(label)+' ('+esc(q.id)+')&hellip; this can take a minute</span>';
+ q.status='sent'; q.sent=now(); q.cluster=id; q.sent_image=img?(q.region?'box':'whole scan'):'none'; delete q.error; persist(); renderAsk();
+ $('saved').innerHTML='<span class="flash">asking '+esc(label)+' ('+esc(q.id)+')&hellip; the answer will appear in the Ask a model tab</span>';
  // the reader's own question replaces the form's standard instruction (written for words in doubt)
  const base=q.question?q.text.split('\n').filter(l=>!l.startsWith('Answer with:')).join('\n'):q.text;
  const question=base+'\nImage attached: '+(img?(q.region?'the box on the scan, cut out with a small margin.':'the whole scan, reduced.'):'none (the scan could not be read in this browser).');
- let res=null, j=null; try{res=await fetch('/api/ask',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:id,question:question,image:img})}); j=await res.json().catch(()=>null);}catch(e){j={error:'the team server could not be reached ('+e.message+')'}}
- if(!res||!res.ok||!j||j.error){q.status='open'; q.error=(j&&j.error)||('the server answered '+(res?res.status:'nothing')); persist(); renderAsk(); $('saved').innerHTML='<span class="warn">'+esc(label)+' did not answer: '+esc(q.error)+'</span>'; return;}
- const text=j.answer||('[No answer text: the model stopped ('+(j.finish||'reason not given')+') before it answered.'+(j.reasoning?' Its reasoning so far:]\n'+String(j.reasoning).slice(0,4000):']'));
- q.answers.push({text:text,basis:'R',by:label+' (asked through the team server by '+reader()+')',t:j.t||now(),source:'server',finish:j.finish||null,usage:j.usage||null,seconds:j.seconds||null});
- delete q.error; if(q.status!=='ruled') q.status='answered'; SC(q.deed,q.scan).events.push({t:now(),reader:reader(),kind:'answer_server',detail:q.id+' from '+label});
- persist(); renderAsk(); $('saved').innerHTML='<span class="flash">'+esc(label)+' answered '+esc(q.id)+': see the Ask a model tab</span>';}
+ let res=null, j=null; try{res=await fetch('/api/ask',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:q.id,model:id,question:question,image:img})}); j=await res.json().catch(()=>null);}catch(e){j={error:'the team server could not be reached ('+e.message+')'}}
+ if(!res||res.status!==202){askFailed(q.id,(j&&j.error)||('the server answered '+(res?res.status:'nothing'))); return;}
+ collectAnswer(q.id);}
+// D11: the server keeps each answer and the browser collects it, so no connection is held open while the model thinks
+const collecting=new Set();
+function myQuery(qid){const r=SRV&&S.readers[SRV.reader]; return r?(r.queries||[]).find(x=>x.id===qid):null}
+function askFailed(qid,msg){const q=myQuery(qid); if(!q) return; q.status='open'; q.error=msg; persist(); renderAsk(); $('saved').innerHTML='<span class="warn">'+esc(qModel(q))+' did not answer: '+esc(msg)+'</span>';}
+async function collectAnswer(qid){if(collecting.has(qid)) return; collecting.add(qid); const t0=Date.now();
+ try{while(Date.now()-t0<15*60*1000){await new Promise(r=>setTimeout(r,4000)); let res,j;
+   try{res=await fetch('/api/ask?id='+encodeURIComponent(qid),{cache:'no-store',credentials:'same-origin'}); j=await res.json().catch(()=>null);}catch(e){continue} // a lost check is tried again
+   if(res.status===202) continue;
+   if(res.status===404){askFailed(qid,'the server has no record of this question (it may have been restarted while asking): ask again'); return;}
+   if(res.status!==200||!j){askFailed(qid,'the server answered '+res.status); return;}
+   const q=myQuery(qid); if(!q) return; const label=qModel(q);
+   if(j.error){askFailed(qid,j.error); return;}
+   const text=j.answer||('[No answer text: the model stopped ('+(j.finish||'reason not given')+') before it answered.'+(j.reasoning?' Its reasoning so far:]\n'+String(j.reasoning).slice(0,4000):']'));
+   if(!(q.answers||[]).some(a=>a.source==='server'&&a.t===j.t)) q.answers.push({text:text,basis:'R',by:label+' (asked through the team server by '+reader()+')',t:j.t||now(),source:'server',finish:j.finish||null,usage:j.usage||null,seconds:j.seconds||null});
+   delete q.error; if(q.status!=='ruled') q.status='answered'; SC(q.deed,q.scan).events.push({t:now(),reader:reader(),kind:'answer_server',detail:q.id+' from '+label});
+   persist(); renderAsk(); $('saved').innerHTML='<span class="flash">'+esc(label)+' answered '+esc(q.id)+': see the Ask a model tab</span>'; return;}
+  askFailed(qid,'no answer after 15 minutes');}
+ finally{collecting.delete(qid)}}
+function resumeCollecting(){const r=SRV&&S.readers[SRV.reader]; if(!r) return; (r.queries||[]).filter(q=>q.status==='sent'&&q.cluster).forEach(q=>collectAnswer(q.id));}
 $('ak-copy').addEventListener('click',async()=>{if(CLUSTER[askModel()]) return askCluster(); const q=makeQuery(); const ok=await copyText(q.text); q.copied=ok?now():null; if(ok) q.status='asked'; persist(); renderAsk(); $('saved').innerHTML=ok?'<span class="flash">question '+esc(q.id)+' copied: paste it into the chat of '+esc(q.model)+'</span>':'<span class="warn">could not copy: open the Ask a model tab and copy the question from there</span>';});
 $('ak-log').addEventListener('click',()=>{const q=makeQuery(); $('saved').innerHTML='<span class="flash">question '+esc(q.id)+' logged for the next query file</span>';});
 let askFilter='this deed';
@@ -655,7 +671,7 @@ function renderAsk(){const r=R(); const qs=r.queries.filter(q=>askFilter==='all'
  let h='<div class="sect"><h3>Questions to a model · '+esc(reader())+'</h3>Show: '+['this deed','open','all'].map(f=>'<button class="af'+(f===askFilter?' on':'')+'" data-f="'+f+'">'+f+'</button>').join(' ')+
   '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;align-items:center"><label class="sl">Model <select id="askmodel" title="The model for the next question and for the query file">'+modelOptions()+'</select></label><button id="writeq" class="primary"'+(nOpen?'':' disabled')+'>Write query file for this model ('+nOpen+' not yet sent)</button><button id="impa">Import answer file&hellip;</button><input id="impafile" type="file" accept=".json" style="display:none"></div>'+
   (CLUSTER[askModel()]?'<p class="sl"><b>'+esc(askModel())+'</b> is on the cluster: the team server asks it for you and its answer appears under the question here, usually within a minute or two (a whole page can take several). A question still waiting shows <i>sent</i>.</p>':'')+'<p class="sl">Clipboard route (other models): a single question is already on your clipboard; paste it into that model\u2019s chat, then paste the answer into its box below. Each question and answer names its model. Many questions: choose the model, <i>Write query file</i>, then ask that model to read it from <code>queries/</code> and write an answer file into <code>answers/</code>; import that here.</p></div><div class="sect">';
- h+=qs.length?qs.slice().reverse().map(q=>'<div class="q" data-id="'+q.id+'"><span class="st">'+esc(q.status)+'</span><b>'+esc(q.id)+'</b> · '+esc(qModel(q))+' · deed '+q.deed+', scan '+esc(q.scan.slice(-6))+', line '+q.line+' <button class="goq">go to line</button> <button class="cpq">copy again</button><pre>'+esc(q.text)+'</pre>'+
+ h+=qs.length?qs.slice().reverse().map(q=>'<div class="q" data-id="'+q.id+'"><span class="st">'+esc(q.status)+'</span><b>'+esc(q.id)+'</b> · '+esc(qModel(q))+' · deed '+q.deed+', scan '+esc(q.scan.slice(-6))+', line '+q.line+' <button class="goq">go to line</button> <button class="cpq">copy again</button><pre>'+esc(q.text)+'</pre>'+(q.error?'<p class="warn">Not answered: '+esc(q.error)+'</p>':'')+
   (q.answers||[]).map(a=>'<div><b>Answer</b> <span class="basis">'+esc(a.basis||'R')+'</span> <span class="sl">'+esc(a.by||'')+' · '+esc(a.t||'')+' · '+esc(a.source||'')+'</span><pre>'+esc(a.text)+(a.candidates&&a.candidates.length?'\n\nCandidates:\n'+a.candidates.map(c=>'- '+c.reading+' ('+(c.grade||'?')+'): '+(c.reason||'')).join('\n'):'')+(a.sources&&a.sources.length?'\n\nSources: '+a.sources.join(' ; '):'')+'</pre></div>').join('')+
   '<label class="sl">Paste the answer of '+esc(qModel(q))+' (clipboard route)</label><textarea class="pa"></textarea><button class="savea">Add answer</button>'+
   '<br><label class="sl">Your ruling, from the ink</label><textarea class="ru">'+esc(q.ruling?q.ruling.text:'')+'</textarea><button class="saver">Record ruling</button>'+(q.ruling?' <span class="sl">ruled '+esc(q.ruling.t)+'</span>':'')+'</div>').join(''):'<p class="sl">No questions yet for this view.</p>';
@@ -807,7 +823,7 @@ async function serverStart(){if(!/^https?:$/.test(location.protocol)) return; //
  const an=S.readers.anon; if(an&&!(an.queries||[]).length&&!Object.values(an.deeds||{}).some(ds=>(ds.notes||'').trim()||(ds.entities||[]).length||Object.keys(ds.seen||{}).length||Object.values(ds.scans||{}).some(x=>(x.text||'').trim()||(x.events||[]).length||(x.notes||'').trim()))) delete S.readers.anon;
  S.ui.lastReader=me.reader; $('srvmode').textContent=' · team server '+(me.server||'')+', reader '+me.reader;
  srvStatus('ok','connecting to the server…');
- await serverPull(true); setInterval(()=>serverPull(false),30000);}
+ await serverPull(true); resumeCollecting(); setInterval(()=>serverPull(false),30000);}
 function when(t){t=String(t||''); return t.slice(0,10)===now().slice(0,10)?t.slice(11,16):t.slice(0,16)}
 function alsoText(sc){const lh=sc.lineHelp||{}; return '<div class="alsotext">'+String(sc.text).replace(/\s+$/,'').split('\n').map((l,i)=>{const f=lh[i+1]; const m=f?['M','C','G','X'].filter(k=>f[k]).join(''):''; return '<div class="hl"><span class="n">'+(m?m+' ':'')+(i+1)+'</span><span class="t">'+esc(l)+'</span></div>'}).join('')+'</div>'}
 function renderAlso(){const el=$('also'); if(!el) return; if(!SRV||!cur.no||!cur.sid){el.style.display='none';return}

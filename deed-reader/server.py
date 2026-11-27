@@ -154,6 +154,7 @@ class Config:
         self.ask_log = p(c.get("ask_log", os.path.join(os.path.dirname(self.log_file), "ask.log")))
         self.ask_base_url = c.get("ask_base_url", ASK_BASE_URL).rstrip("/")
         self.ask_models = dict(c.get("ask_models") or ASK_MODELS)
+        self.ask_answers_dir = p(c.get("ask_answers_dir", os.path.join(os.path.dirname(self.store_dir), "answers")))
         self.ask_max_tokens = int(c.get("ask_max_tokens", ASK_MAX_TOKENS))
         self.ask_timeout = int(c.get("ask_timeout", ASK_TIMEOUT))
 
@@ -174,6 +175,50 @@ class Asker:
         self.max_tokens = cfg.ask_max_tokens
         self.timeout = cfg.ask_timeout
         self.lock = threading.Lock()
+        # Answers are kept, one file per question, beside the readings: answers/<reader>/<id>.json.
+        # Written once when the model replies; a reload, or a server restart, loses nothing.
+        self.answers_dir = cfg.ask_answers_dir
+        self.working = {}  # (reader, id) -> time started
+
+    def _path(self, reader, qid):
+        return os.path.join(self.answers_dir, safe_name(reader), qid + ".json")
+
+    def start(self, reader, qid, model, question, image):
+        """Start asking in the background; asking twice for one question starts it once."""
+        key = (reader, qid)
+        with self.lock:
+            if key not in self.working and not os.path.exists(self._path(reader, qid)):
+                self.working[key] = time.time()
+                threading.Thread(target=self._run, args=(reader, qid, model, question, image), daemon=True).start()
+        return {"id": qid, "state": "working"}
+
+    def _run(self, reader, qid, model, question, image):
+        try:
+            code, out = self.ask(reader, model, question, image)
+        except Exception as e:  # never leave a question working for ever
+            code, out = 500, {"error": self.scrub("the server failed while asking (%s)" % type(e).__name__)}
+        out = dict(out, id=qid, http=code, state="done")
+        path = self._path(reader, qid)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".part", "w", encoding="utf-8") as f:
+            json.dump(out, f, ensure_ascii=False)
+        os.replace(path + ".part", path)
+        with self.lock:
+            self.working.pop((reader, qid), None)
+
+    def collect(self, reader, qid):
+        """A reader's own answer: 200 when kept, 202 while the model works, 404 if never asked."""
+        if not re.match(r"[A-Za-z0-9_-]{1,80}$", qid or ""):
+            return 400, {"error": "question id missing or malformed"}
+        with self.lock:
+            started = self.working.get((reader, qid))
+        if started is not None:
+            return 202, {"id": qid, "state": "working", "seconds": round(time.time() - started)}
+        try:
+            with open(self._path(reader, qid), encoding="utf-8") as f:
+                return 200, json.load(f)
+        except OSError:
+            return 404, {"id": qid, "state": "unknown"}
 
     def on(self):
         return bool(self.key and self.models)
@@ -346,6 +391,9 @@ def make_handler(cfg, store, tokens, asker):
                 return self.send_json(200, {"reader": reader, "server": VERSION, "readers": sorted({r for _, r in tokens}),
                                             "ask": asker.on(),
                                             "ask_models": [{"id": k, "label": v} for k, v in asker.models.items()]})
+            if path == "/api/ask":
+                code, out = asker.collect(reader, (q.get("id") or [""])[0])
+                return self.send_json(code, out)
             if path == "/api/state":
                 return self.send_json(200, {"t": now(), "readers": store.snapshot()})
             if path in allowed_static:
@@ -396,8 +444,12 @@ def make_handler(cfg, store, tokens, asker):
                 if image is not None and not (isinstance(image, str) and len(image) <= ASK_MAX_IMAGE and
                                               re.match(r"data:image/(jpeg|png);base64,[A-Za-z0-9+/=]+$", image)):
                     return self.send_json(400, {"error": "image must be a JPEG or PNG data URL under 8 MB"})
-                code, out = asker.ask(reader, model, question, image)
-                return self.send_json(code, out)
+                qid = body.get("id")
+                if not (isinstance(qid, str) and re.match(r"[A-Za-z0-9_-]{1,80}$", qid)):
+                    return self.send_json(400, {"error": "question id missing or malformed"})
+                # Answered later: the browser collects the answer with GET /api/ask?id=..., so no
+                # connection is held open while the model thinks (the cluster drops long silent ones).
+                return self.send_json(202, asker.start(reader, qid, model, question, image))
             return self.send_json(404, {"error": "no such endpoint"})
 
     return H
