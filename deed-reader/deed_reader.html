@@ -638,9 +638,15 @@ function cropScan(region){const im=$('img'); if(!im||!im.naturalWidth) return nu
 async function askCluster(){const label=askModel(), id=CLUSTER[label]; const q=makeQuery(); const img=cropScan(q.region);
  q.status='sent'; q.sent=now(); q.cluster=id; q.sent_image=img?(q.region?'box':'whole scan'):'none'; delete q.error; persist(); renderAsk();
  $('saved').innerHTML='<span class="flash">asking '+esc(label)+' ('+esc(q.id)+')&hellip; the answer will appear in the Ask a model tab</span>';
- // the reader's own question replaces the form's standard instruction (written for words in doubt)
- const base=q.question?q.text.split('\n').filter(l=>!l.startsWith('Answer with:')).join('\n'):q.text;
- const question=base+'\nImage attached: '+(img?(q.region?'the box on the scan, cut out with a small margin.':'the whole scan, reduced.'):'none (the scan could not be read in this browser).');
+ // What a cluster model is sent: one line of context, a note on the image, and the reader's own question.
+ // The box's position and the file path describe the full scan, which the model does not see, so they are left out;
+ // with no question of the reader's, the form's standard instruction (for words in doubt) goes instead.
+ // The log keeps exactly the text sent.
+ const d=BYNO[q.deed]||{};
+ const ctx='Deed '+q.deed+' ('+(d.type||'')+', '+(d.date||'')+' per index), '+(U.collection_short?U.collection_short+' ':'')+'inv. '+(d.inventory||'')+', language (index) '+(d.language||'')+'.';
+ const imgNote='Image attached: '+(img?(q.region?'a box cut out of the scan, with a small margin.':'the whole scan, reduced.'):'none (the scan could not be read in this browser).');
+ const question=q.question?[ctx,imgNote,q.question].join('\n'):q.text.split('\n').filter(l=>!/^(Scan |Region: )/.test(l)).concat([imgNote]).join('\n');
+ q.text=question; persist(); renderAsk();
  let res=null, j=null; try{res=await fetch('/api/ask',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:q.id,model:id,question:question,image:img})}); j=await res.json().catch(()=>null);}catch(e){j={error:'the team server could not be reached ('+e.message+')'}}
  if(!res||res.status!==202){askFailed(q.id,(j&&j.error)||('the server answered '+(res?res.status:'nothing'))); return;}
  collectAnswer(q.id);}
