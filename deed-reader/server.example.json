@@ -14,6 +14,7 @@
   "bind": "127.0.0.1 on a laptop; 0.0.0.0 in a cluster job, so the tunnel through the head node can reach it.",
   "port": "Not 8080 and not 21800-21899 (reserved on DHinfra).",
   "scan_mounts": "URL prefix -> folder. The prefix is where the scan paths in the data file land when the browser resolves them against /deed_reader.html (leading ../ steps stop at the root).",
-  "tokens_file": "Made by make_tokens.py. Keep it in your home folder, readable by you only, never in the shared workspace or the repository."
+  "tokens_file": "Made by make_tokens.py. Keep it in your home folder, readable by you only, never in the shared workspace or the repository.",
+  "asking the cluster's models": "On only when the job's environment holds DHINFRA_API_KEY (typed at the prompt when the job is started; never put it in this file). Optional settings, with their defaults: ask_max_tokens 32768, ask_timeout 600 (seconds), ask_log (beside access_log, ask.log), ask_answers_dir (beside store_dir, answers), ask_base_url (the DHinfra API), ask_models (DeepSeek V4.1 Flash and GLM 5.3 Flash)."
  }
 }
