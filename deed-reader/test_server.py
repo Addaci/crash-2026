@@ -21,6 +21,7 @@ into a temporary folder that is removed at the end; no token is ever printed.
    shorter than 20 characters are refused.
 8. No token appears in what the server prints or in its access log.
 """
+import http.server
 import json
 import os
 import pathlib
@@ -30,6 +31,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import unittest
 import urllib.error
@@ -63,6 +65,17 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
+PROXY_VARS = ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY")
+
+
+def server_env(key=None):
+    """The server's environment: no proxy (the pretend model service is on this computer) and
+    DHINFRA_API_KEY only when a test gives one."""
+    env = {k: v for k, v in os.environ.items() if k not in PROXY_VARS and k != "DHINFRA_API_KEY"}
+    env["NO_PROXY"] = env["no_proxy"] = "127.0.0.1,localhost"
+    if key:
+        env["DHINFRA_API_KEY"] = key
+    return env
 
 
 class ServerTest(unittest.TestCase):
@@ -103,10 +116,13 @@ class ServerTest(unittest.TestCase):
         p.write_text(json.dumps(c, indent=1), encoding="utf-8")
         return p
 
+    KEY = None  # no API key: asking through the server stays off
+
     @classmethod
     def start(cls):
         cls.proc = subprocess.Popen([sys.executable, "-I", "-u", str(HERE / "server.py"), "--config", str(cls.cfg)],
-                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
+                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                                    env=server_env(cls.KEY))
         for _ in range(100):
             if cls.proc.poll() is not None:
                 raise RuntimeError("server.py stopped at start: " + cls.proc.stdout.read())
@@ -203,6 +219,7 @@ class ServerTest(unittest.TestCase):
             self.assertEqual(me["reader"], who)
             self.assertEqual(me["readers"], ["Anna", "Ben"])
             self.assertIs(me["ask"], False)
+            self.assertEqual(me["ask_models"], [])
 
     # ---- 4. private files and escaping paths ----
     def test_06_private_files_refused(self):
@@ -300,6 +317,126 @@ class ServerTest(unittest.TestCase):
         for who, t in self.tok.items():            # assertFalse, so a failure names the reader, never the token
             self.assertFalse(t in printed, "%s's token was printed" % who)
             self.assertFalse(t in log, "%s's token is in the access log" % who)
+
+
+class PretendModels(http.server.BaseHTTPRequestHandler):
+    """A pretend cluster model service on this computer: it records each request and answers."""
+    seen = []
+
+    def log_message(self, *a):
+        pass
+
+    def do_POST(self):
+        n = int(self.headers.get("Content-Length", "0"))
+        body = json.loads(self.rfile.read(n).decode("utf-8"))
+        PretendModels.seen.append({"path": self.path, "auth": self.headers.get("Authorization"), "body": body})
+        text = body["messages"][0]["content"][0]["text"]
+        if "please fail" in text:
+            out, code = {"error": "overloaded"}, 503
+        elif "think too long" in text:
+            out, code = {"choices": [{"message": {"content": "", "reasoning_content": "Hmm, the first letter"},
+                                      "finish_reason": "length"}], "usage": {"prompt_tokens": 9, "completion_tokens": 4000}}, 200
+        else:
+            out, code = {"choices": [{"message": {"content": "Strong: 'Barbados'.", "reasoning_content": "b-a-r"},
+                                      "finish_reason": "stop"}],
+                         "usage": {"prompt_tokens": 1200, "completion_tokens": 80, "total_tokens": 1280}}, 200
+        b = json.dumps(out).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(b)))
+        self.end_headers()
+        self.wfile.write(b)
+
+
+class AskTest(ServerTest):
+    """D11: asking the cluster's models through the server, against the pretend service.
+    The server's other behaviour is tested again with the key set (the inherited tests)."""
+    KEY = "test-key-" + "k" * 30
+
+    @classmethod
+    def setUpClass(cls):
+        cls.models = http.server.ThreadingHTTPServer(("127.0.0.1", 0), PretendModels)
+        threading.Thread(target=cls.models.serve_forever, daemon=True).start()
+        cls.models_url = "http://127.0.0.1:%d/v1" % cls.models.server_address[1]
+        orig = ServerTest.write_cfg.__func__
+
+        def write_cfg(c, name, **over):
+            over.setdefault("ask_base_url", cls.models_url)
+            return orig(c, name, **over)
+        cls.write_cfg = classmethod(write_cfg)
+        super().setUpClass()
+
+    @classmethod
+    def tearDownClass(cls):
+        super().tearDownClass()
+        cls.models.shutdown()
+
+    IMG = "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
+
+    def ask(self, who="Anna", **body):
+        b = {"model": "glm-5.3-flash", "question": "What is this word?", "image": self.IMG}
+        b.update(body)
+        code, _, raw = self.req("/api/ask", bearer=self.tok[who] if who else None, body=b)
+        return code, json.loads(raw) if raw[:1] == b"{" else raw
+
+    def test_05_reader_is_the_tokens(self):
+        code, _, b = self.req("/api/me", bearer=self.tok["Anna"])
+        me = json.loads(b)
+        self.assertIs(me["ask"], True)
+        self.assertEqual([m["id"] for m in me["ask_models"]], ["deepseek-v4.1-flash", "glm-5.3-flash"])
+        self.assertFalse(self.KEY in b.decode("utf-8"), "the key reached a browser")
+
+    def test_10_malformed_saves_refused(self):
+        self.skipTest("covered by ServerTest; here /api/ask is on")
+
+    def test_20_ask_passes_question_image_and_key(self):
+        PretendModels.seen.clear()
+        code, r = self.ask(question="What is this word, please?")
+        self.assertEqual(code, 200, r)
+        self.assertEqual((r["answer"], r["finish"], r["model"]), ("Strong: 'Barbados'.", "stop", "glm-5.3-flash"))
+        self.assertEqual(r["usage"]["prompt_tokens"], 1200)
+        sent = PretendModels.seen[-1]
+        self.assertEqual(sent["path"], "/v1/chat/completions")
+        self.assertTrue(sent["auth"] == "Bearer " + self.KEY, "the key was not sent to the model service")
+        content = sent["body"]["messages"][0]["content"]
+        self.assertEqual(content[0]["text"], "What is this word, please?")
+        self.assertEqual(content[1]["image_url"]["url"], self.IMG)
+        self.assertEqual(sent["body"]["model"], "glm-5.3-flash")
+
+    def test_21_empty_answer_returns_reasoning(self):
+        code, r = self.ask(model="deepseek-v4.1-flash", question="think too long")
+        self.assertEqual(code, 200)
+        self.assertEqual((r["answer"], r["finish"], r["reasoning"]), ("", "length", "Hmm, the first letter"))
+
+    def test_22_refusals(self):
+        n = len(PretendModels.seen)
+        self.assertEqual(self.ask(who=None)[0], 401)
+        self.assertEqual(self.ask(model="gpt-5")[0], 400)
+        self.assertEqual(self.ask(question="")[0], 400)
+        self.assertEqual(self.ask(question="x" * 20001)[0], 400)
+        self.assertEqual(self.ask(image="https://example.org/a.jpg")[0], 400)
+        self.assertEqual(self.ask(image="data:image/svg+xml;base64,PHN2Zz4=")[0], 400)
+        self.assertEqual(len(PretendModels.seen), n, "a refused question reached the model service")
+        self.assertEqual(self.ask(image=None)[0], 200, "a question without an image is allowed")
+
+    def test_23_service_failure_reported_without_the_key(self):
+        code, r = self.ask(question="please fail")
+        self.assertEqual(code, 502)
+        self.assertIn("503", r["error"])
+        self.assertFalse(self.KEY in json.dumps(r))
+
+    def test_24_key_never_printed_or_logged(self):
+        self.ask()
+        type(self).stop()      # collect what the server printed
+        type(self).start()
+        store = self.tmp / "store"
+        texts = ["".join(self.outputs)] + [p.read_text(encoding="utf-8") for p in store.rglob("*") if p.is_file()]
+        for t in texts:
+            self.assertFalse(self.KEY in t, "the API key was printed or written to a file")
+        ask_log = (store / "ask.log").read_text(encoding="utf-8")
+        self.assertIn("model=glm-5.3-flash", ask_log)
+        self.assertNotIn("What is this word", ask_log, "a question was written to the ask log")
+        self.assertIn("Asking the cluster's models: on", "".join(self.outputs))
 
 
 if __name__ == "__main__":

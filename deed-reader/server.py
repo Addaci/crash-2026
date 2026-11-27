@@ -5,7 +5,9 @@ One small Python process that gives a reading team:
   1. one copy of the form, the data file and the scans;
   2. shared readings: every reader's work is kept on the server, and each reader
      can see (never edit) the others' work;
-  3. (later, D11) model calls made by the server, so the API key never reaches a browser.
+  3. (D11, 27 Nov 2026) questions to the cluster's own models, asked by the server, so the
+     API key never reaches a browser. On only when DHINFRA_API_KEY is set in the server's
+     environment (never in a file); otherwise the form keeps its clipboard route alone.
 
 Standard library only, so it runs on a bare Python 3.7 or newer (a DHinfra compute
 node, or a laptop). Nothing to install.
@@ -31,7 +33,9 @@ import socket
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
+import urllib.request
 from http.server import BaseHTTPRequestHandler
 
 try:
@@ -43,10 +47,19 @@ except ImportError:  # Python 3.6
     class ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
         daemon_threads = True
 
-VERSION = "0.1"
+VERSION = "0.2"
 COOKIE = "dr_token"
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tif", ".tiff"}
 MAX_BODY = 20 * 1024 * 1024  # 20 MB per save
+
+# D11: the cluster's chat models that can read an image (DHinfra console, 27 Nov 2026).
+ASK_MODELS = {"deepseek-v4.1-flash": "DeepSeek V4.1 Flash (cluster)",
+              "glm-5.3-flash": "GLM 5.3 Flash (cluster)"}
+ASK_BASE_URL = "https://api.dhinfra.uni-graz.at/v1"
+ASK_MAX_TOKENS = 4000          # room for a reasoning model's thinking before its answer
+ASK_TIMEOUT = 180              # seconds to wait for one answer
+ASK_MAX_QUESTION = 20000       # characters
+ASK_MAX_IMAGE = 8 * 1024 * 1024  # characters of the image's data URL
 
 
 def now():
@@ -137,6 +150,78 @@ class Config:
             prefix = "/" + prefix.strip("/") + "/"
             self.mounts[prefix] = p(folder)
         self.log_file = p(c.get("access_log", os.path.join(self.store_dir, "access.log")))
+        # D11: who asked which model, when, how long and how many tokens; never the question or the key.
+        self.ask_log = p(c.get("ask_log", os.path.join(os.path.dirname(self.log_file), "ask.log")))
+        self.ask_base_url = c.get("ask_base_url", ASK_BASE_URL).rstrip("/")
+        self.ask_models = dict(c.get("ask_models") or ASK_MODELS)
+
+
+class Asker:
+    """D11: asks one of the cluster's models on a reader's behalf.
+
+    The key comes only from the environment variable DHINFRA_API_KEY of the server's own
+    process (set by the person who starts the job); it is never written, printed, logged
+    or sent to a browser. Without it, asking through the server stays off.
+    """
+
+    def __init__(self, cfg):
+        self.key = os.environ.get("DHINFRA_API_KEY", "").strip()
+        self.base = cfg.ask_base_url
+        self.models = cfg.ask_models if self.key else {}
+        self.log_file = cfg.ask_log
+        self.lock = threading.Lock()
+
+    def on(self):
+        return bool(self.key and self.models)
+
+    def scrub(self, s):
+        return s.replace(self.key, "[key]") if self.key else s
+
+    def log(self, reader, model, seconds, outcome, usage):
+        u = usage or {}
+        line = "%s reader=%s model=%s seconds=%.1f outcome=%s tokens_in=%s tokens_out=%s\n" % (
+            now(), safe_name(reader), model, seconds, outcome.replace(" ", "_"),
+            u.get("prompt_tokens", "-"), u.get("completion_tokens", "-"))
+        with self.lock:
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                f.write(line)
+
+    def ask(self, reader, model, question, image):
+        content = [{"type": "text", "text": question}]
+        if image:
+            content.append({"type": "image_url", "image_url": {"url": image}})
+        body = {"model": model, "messages": [{"role": "user", "content": content}],
+                "max_tokens": ASK_MAX_TOKENS, "temperature": 0.2}
+        req = urllib.request.Request(self.base + "/chat/completions", data=json.dumps(body).encode("utf-8"),
+                                     headers={"Content-Type": "application/json",
+                                              "Authorization": "Bearer " + self.key}, method="POST")
+        t0 = time.time()
+        try:
+            with urllib.request.urlopen(req, timeout=ASK_TIMEOUT) as r:
+                res = json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read(400).decode("utf-8", "replace")
+            except Exception:
+                detail = ""
+            self.log(reader, model, time.time() - t0, "http %d" % e.code, None)
+            return 502, {"error": self.scrub("the cluster's model service answered %d %s" % (e.code, detail.strip()))}
+        except Exception as e:  # network, timeout, not JSON
+            self.log(reader, model, time.time() - t0, type(e).__name__, None)
+            return 504, {"error": self.scrub("no answer from the cluster's model service (%s: %s)" % (type(e).__name__, e))}
+        choice = (res.get("choices") or [{}])[0] or {}
+        msg = choice.get("message") or {}
+        answer = msg.get("content") or ""
+        if isinstance(answer, list):  # some services return a list of text parts
+            answer = "".join(p.get("text", "") for p in answer if isinstance(p, dict))
+        reasoning = msg.get("reasoning_content") or msg.get("reasoning") or ""
+        usage = res.get("usage") or {}
+        usage = {k: usage[k] for k in ("prompt_tokens", "completion_tokens", "total_tokens") if k in usage}
+        seconds = time.time() - t0
+        self.log(reader, model, seconds, "answered" if answer.strip() else "empty", usage)
+        return 200, {"t": now(), "model": model, "label": self.models[model], "answer": answer.strip(),
+                     "reasoning": str(reasoning).strip()[:20000], "finish": choice.get("finish_reason"),
+                     "usage": usage, "seconds": round(seconds, 1)}
 
 
 def load_tokens(path):
@@ -153,7 +238,7 @@ def load_tokens(path):
     return out
 
 
-def make_handler(cfg, store, tokens):
+def make_handler(cfg, store, tokens, asker):
     allowed_static = {"/deed_reader.html": os.path.join(cfg.form_dir, "deed_reader.html"),
                       "/" + cfg.data_file.strip("/"): os.path.join(cfg.form_dir, cfg.data_file)}
     log_lock = threading.Lock()
@@ -255,7 +340,8 @@ def make_handler(cfg, store, tokens):
                 return
             if path == "/api/me":
                 return self.send_json(200, {"reader": reader, "server": VERSION, "readers": sorted({r for _, r in tokens}),
-                                            "ask": False})
+                                            "ask": asker.on(),
+                                            "ask_models": [{"id": k, "label": v} for k, v in asker.models.items()]})
             if path == "/api/state":
                 return self.send_json(200, {"t": now(), "readers": store.snapshot()})
             if path in allowed_static:
@@ -296,7 +382,18 @@ def make_handler(cfg, store, tokens):
                 t = store.save(reader, deeds, queries)
                 return self.send_json(200, {"saved": t, "reader": reader, "deeds": len(deeds)})
             if path == "/api/ask":
-                return self.send_json(501, {"error": "Asking a model through the server is not switched on yet."})
+                if not asker.on():
+                    return self.send_json(501, {"error": "Asking a model through the server is not switched on yet."})
+                model, question, image = body.get("model"), body.get("question"), body.get("image")
+                if model not in asker.models:
+                    return self.send_json(400, {"error": "not one of the cluster models this server asks"})
+                if not isinstance(question, str) or not question.strip() or len(question) > ASK_MAX_QUESTION:
+                    return self.send_json(400, {"error": "question missing or too long"})
+                if image is not None and not (isinstance(image, str) and len(image) <= ASK_MAX_IMAGE and
+                                              re.match(r"data:image/(jpeg|png);base64,[A-Za-z0-9+/=]+$", image)):
+                    return self.send_json(400, {"error": "image must be a JPEG or PNG data URL under 8 MB"})
+                code, out = asker.ask(reader, model, question, image)
+                return self.send_json(code, out)
             return self.send_json(404, {"error": "no such endpoint"})
 
     return H
@@ -312,11 +409,16 @@ def main():
     for need in (os.path.join(cfg.form_dir, "deed_reader.html"), os.path.join(cfg.form_dir, cfg.data_file)):
         if not os.path.isfile(need):
             sys.exit("Missing: " + need)
-    srv = ThreadingHTTPServer((cfg.bind, cfg.port), make_handler(cfg, store, tokens))
+    asker = Asker(cfg)
+    srv = ThreadingHTTPServer((cfg.bind, cfg.port), make_handler(cfg, store, tokens, asker))
     host = socket.gethostname()
     print("Deed Reader server %s started %s on %s, port %d" % (VERSION, now(), host, cfg.port))
     print("Readers with tokens: %s" % ", ".join(sorted({r for _, r in tokens})))
     print("Readings kept in: %s (%d readers so far)" % (cfg.store_dir, len(store.readers)))
+    if asker.on():
+        print("Asking the cluster's models: on (%s)" % ", ".join(asker.models.values()))
+    else:
+        print("Asking the cluster's models: off (no DHINFRA_API_KEY in this job's environment)")
     if cfg.bind == "127.0.0.1":
         print("Open: http://localhost:%d/?t=<your token>" % cfg.port)
     else:

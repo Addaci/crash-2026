@@ -14,6 +14,8 @@ The history of the form (`deed_reader.html`) and its data builder (`build_deed_d
 
 ## 2.1, 26 November 2026
 
+**Added 27 November 2026 (server 0.2, decision D11):** on the team server, *Ask a model* can also ask the cluster's own models, DeepSeek V4.1 Flash and GLM 5.3 Flash, marked *cluster* in the model list. The server asks them itself: the form cuts the box (or the whole scan) out of the image and sends it with the question; the answer comes back into the Questions log, credited to the model, with its token counts. The API key is read only from the environment of the server's job (`DHINFRA_API_KEY`), never from a file, and never reaches a browser; without it the server offers the clipboard route alone, as before. The server's `ask.log` records who asked which model, when and at what cost, never the question. `test_server.py` now checks this against a pretend model service on the same computer (31 checks). The job script `run_server.slurm` is added, tested on the cluster the same morning.
+
 Team-server mode, for a reading team working from one copy of the data and scans on a server (`server.py`, version 0.1, added the same day; decisions D7 to D10 and D12 of 26 November 2026, proposed by Claude Opus 5.5, High, agreed by Colin Greenstreet). Opened from a file, the form behaves exactly as 2.0.
 
 - **Server mode** is found at start by asking the server who the reader is (`/api/me`). Without a server, nothing changes.
