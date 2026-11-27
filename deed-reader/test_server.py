@@ -407,7 +407,8 @@ class AskTest(ServerTest):
         code, _, b = self.req("/api/me", bearer=self.tok["Anna"])
         me = json.loads(b)
         self.assertIs(me["ask"], True)
-        self.assertEqual([m["id"] for m in me["ask_models"]], ["deepseek-v4.1-flash", "glm-5.3-flash"])
+        self.assertEqual([m["id"] for m in me["ask_models"]],
+                         ["deepseek-v4.1-flash", "deepseek-v4.1-flash:no-thinking", "glm-5.3-flash"])
         self.assertFalse(self.KEY in b.decode("utf-8"), "the key reached a browser")
 
     def test_10_malformed_saves_refused(self):
@@ -427,6 +428,17 @@ class AskTest(ServerTest):
         self.assertEqual(content[1]["image_url"]["url"], self.IMG)
         self.assertEqual(sent["body"]["model"], "glm-5.3-flash")
         self.assertEqual(sent["body"]["max_tokens"], 32768, "room for thinking and a whole page")
+
+    def test_20b_no_thinking_variant(self):
+        code, r = self.ask(model="deepseek-v4.1-flash:no-thinking", question="Transcribe, no thinking")
+        self.assertEqual((code, r["model"]), (200, "deepseek-v4.1-flash:no-thinking"))
+        sent = [s for s in PretendModels.seen if "no thinking" in s["body"]["messages"][0]["content"][0]["text"]][-1]
+        self.assertEqual(sent["body"]["model"], "deepseek-v4.1-flash", "the variant's suffix reached the service")
+        self.assertEqual(sent["body"]["chat_template_kwargs"], {"enable_thinking": False})
+        code, r = self.ask(model="deepseek-v4.1-flash", question="Transcribe, thinking allowed")
+        sent = [s for s in PretendModels.seen if "thinking allowed" in s["body"]["messages"][0]["content"][0]["text"]][-1]
+        self.assertNotIn("chat_template_kwargs", sent["body"])
+        self.assertEqual(self.ask(model="glm-5.3-flash:no-thinking")[0], 400, "GLM has no such variant")
 
     def test_21_empty_answer_returns_reasoning(self):
         code, r = self.ask(model="deepseek-v4.1-flash", question="think too long")

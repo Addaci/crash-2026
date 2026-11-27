@@ -53,8 +53,13 @@ IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tif", ".tiff"}
 MAX_BODY = 20 * 1024 * 1024  # 20 MB per save
 
 # D11: the cluster's chat models that can read an image (DHinfra console, 27 Nov 2026).
+# A name ending ":no-thinking" asks the same model with its thinking switched off. Tested on the cluster
+# on 27 Nov 2026: DeepSeek V4.1 Flash honours chat_template_kwargs enable_thinking=false; GLM 5.3 Flash
+# thinks whatever it is sent, so it has no such variant.
 ASK_MODELS = {"deepseek-v4.1-flash": "DeepSeek V4.1 Flash (cluster)",
+              "deepseek-v4.1-flash:no-thinking": "DeepSeek V4.1 Flash, no thinking (cluster)",
               "glm-5.3-flash": "GLM 5.3 Flash (cluster)"}
+NO_THINKING = {"chat_template_kwargs": {"enable_thinking": False}}
 ASK_BASE_URL = "https://api.dhinfra.uni-graz.at/v1"
 ASK_MAX_TOKENS = 32768         # room for a reasoning model's thinking and then a whole page of transcription
 ASK_TIMEOUT = 600              # seconds to wait for one answer (a long answer at about 100 tokens a second)
@@ -239,8 +244,11 @@ class Asker:
         content = [{"type": "text", "text": question}]
         if image:
             content.append({"type": "image_url", "image_url": {"url": image}})
-        body = {"model": model, "messages": [{"role": "user", "content": content}],
+        name, _, variant = model.partition(":")
+        body = {"model": name, "messages": [{"role": "user", "content": content}],
                 "max_tokens": self.max_tokens, "temperature": 0.2}
+        if variant == "no-thinking":
+            body.update(NO_THINKING)
         req = urllib.request.Request(self.base + "/chat/completions", data=json.dumps(body).encode("utf-8"),
                                      headers={"Content-Type": "application/json",
                                               "Authorization": "Bearer " + self.key}, method="POST")
