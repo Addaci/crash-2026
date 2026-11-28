@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deed Reader team server (version 0.1, 26 November 2026).
+"""Deed Reader team server (version 0.3, 28 November 2026).
 
 One small Python process that gives a reading team:
   1. one copy of the form, the data file and the scans;
@@ -7,7 +7,18 @@ One small Python process that gives a reading team:
      can see (never edit) the others' work;
   3. (D11, 27 Nov 2026) questions to the cluster's own models, asked by the server, so the
      API key never reaches a browser. On only when DHINFRA_API_KEY is set in the server's
-     environment (never in a file); otherwise the form keeps its clipboard route alone.
+     environment (never in a file); otherwise the form keeps its clipboard route alone;
+  4. (0.3, 28 Nov 2026) a shared knowledge graph with a Hopper and two gates (graph.html),
+     on only when the settings have a "graph" section. Its rules:
+       K4  add-only: an item is added once and never changed; a comment, a revision, a score,
+           a tick or a pull-back is a new entry beside it, signed by its author;
+       K5  Gate 1 is passed by a rule over the latest score (graph_rule_v1), and any author may
+           pull an item back with a reason; Gate 2 needs both deciders' ticks, recorded only
+           from the recorder's token (a decider without a token ticks "said aloud");
+       K9-K12 who may open the graph, and who may add to it, is set per reader in the settings,
+           never in this code; a reader not named there is refused.
+     The graph's content (people, texts, the base network) lives in a file named in the
+     settings, outside the repository.
 
 Standard library only, so it runs on a bare Python 3.7 or newer (a DHinfra compute
 node, or a laptop). Nothing to install.
@@ -47,7 +58,7 @@ except ImportError:  # Python 3.6
     class ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
         daemon_threads = True
 
-VERSION = "0.2"
+VERSION = "0.3"
 COOKIE = "dr_token"
 IMAGE_EXT = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".tif", ".tiff"}
 MAX_BODY = 20 * 1024 * 1024  # 20 MB per save
@@ -69,6 +80,12 @@ ASK_MAX_IMAGE = 8 * 1024 * 1024  # characters of the image's data URL
 
 def now():
     return time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def iso_now():
+    """UTC, to the millisecond, so entries made in the same second keep their order."""
+    t = time.time()
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t)) + ".%03dZ" % int((t % 1) * 1000)
 
 
 def safe_name(s):
@@ -131,6 +148,353 @@ class Store:
             return json.loads(json.dumps(self.readers))
 
 
+# ---- the knowledge graph (0.3) ----
+GRAPH_KINDS = ("voyage", "organisation", "identity", "source lead", "database match", "context")
+GRAPH_NINE_KINDS = ("voyage", "organisation", "context")     # scored on the nine criteria
+GRAPH_STAGES = ("in", "gate1", "approved", "aside")
+GRAPH_STAGE_LABEL = {"in": "In", "gate1": "Gate 1, active consideration", "approved": "Gate 2, approved for the graph",
+                     "aside": "Set aside"}
+# Moves made by the deciders' two ticks. In to Gate 1 is not among them: only the rule makes it (K5).
+GRAPH_NEXT = {"in": ("aside",), "gate1": ("approved", "aside"), "approved": ("aside",), "aside": ("in",)}
+GRAPH_ANSWERS = ("yes", "partly", "no", "not yet known")
+# Basis codes for new items. P always carries its code (P-H, P-MHC, P-MUC); imported items may keep a bare "P".
+GRAPH_BASIS = ("P-H", "P-MHC", "P-MUC", "D", "S", "Q", "X", "A", "B", "N", "R", "I")
+GRAPH_CRITERIA = ("In scope", "Variables", "Route", "Discriminating power", "Directness", "Specificity",
+                  "Adds something new", "Citable", "Graph-ready")
+GRAPH_QUESTIONS = {
+    "identity": ("Is the lead specific?", "Does it rest on primary text?",
+                 "Would it change how a voyage or organisation item is read?"),
+    "source lead": ("Does it name the sources precisely enough to find them?",
+                    "Are they primary, and can we reach them?",
+                    "If read, could they change a voyage or organisation item, or how a database's figures are read?"),
+    "database match": ("Does the match hold on at least two independent fields (name, master, year, route, owner)?",
+                       "What does each side supply that the other lacks?",
+                       "Are the database's own sources named, and can they be read?")}
+GRAPH_RULE = "v1.1"
+
+
+def graph_rule_v1(score):
+    """The holding rule for Gate 1 (K14, 27 Nov 2026), the strawman of 9 Nov 2026.
+    Voyage and organisation: 12 or more of 18, criterion 4 at least 1, criteria 1-4 at least 5.
+    Identity, source lead, database match: all three answers "yes". Context: never by rule.
+    v1.1 (K16, 28 Nov 2026): a provisional score, made without re-reading the passage, never passes;
+    a later score that is not provisional may.
+    Returns (passes, the reason in words). Change the rule here, and its name in GRAPH_RULE."""
+    kind = score.get("kind")
+    if score.get("provisional") is True:
+        return False, "%s: a provisional score does not pass Gate 1 by rule" % kind
+    if score.get("method") == "nine" and kind in ("voyage", "organisation"):
+        parts = {}
+        for p in score.get("parts") or []:
+            try:
+                parts[int(p.get("n"))] = int(p.get("score"))
+            except (TypeError, ValueError, AttributeError):
+                pass
+        total, floor, c4 = sum(parts.values()), sum(parts.get(i, 0) for i in (1, 2, 3, 4)), parts.get(4, 0)
+        why = "%s: %d of 18; criteria 1-4, %d of 8; criterion 4, %d" % (kind, total, floor, c4)
+        return total >= 12 and c4 >= 1 and floor >= 5, why
+    if score.get("method") == "test" and kind in GRAPH_QUESTIONS:
+        ans = [str(a.get("answer", "")).strip().lower() for a in score.get("answers") or [] if isinstance(a, dict)]
+        return len(ans) == 3 and all(a == "yes" for a in ans), "%s: answers %s" % (kind, ", ".join(ans))
+    return False, "%s items do not pass Gate 1 by rule" % kind
+
+
+def norm_ws(s):
+    return re.sub(r"\s+", " ", str(s or "")).strip()
+
+
+class GraphError(Exception):
+    def __init__(self, msg, code=400):
+        Exception.__init__(self, msg)
+        self.code = code
+
+
+def _text(body, key, most, need=False):
+    v = body.get(key)
+    if v is None:
+        v = ""
+    if not isinstance(v, str):
+        raise GraphError("%s must be text" % key)
+    v = v.strip()
+    if need and not v:
+        raise GraphError("%s is needed" % key)
+    if len(v) > most:
+        raise GraphError("%s is longer than %d characters" % (key, most))
+    return v
+
+
+def _whole(body, key, most=999999):
+    """An optional whole number from 1 to most, sent as a number or as digits; None if left empty."""
+    v = body.get(key)
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    if isinstance(v, str) and re.match(r"\s*\d+\s*$", v):
+        v = int(v)
+    if isinstance(v, bool) or not isinstance(v, int) or not 1 <= v <= most:
+        raise GraphError("%s must be a whole number from 1 to %d" % (key, most))
+    return v
+
+
+class GraphStore:
+    """The knowledge graph's Hopper: items and the entries beside them, append-only (D8, K4).
+
+    One file per author, <store_dir>/<reader>.jsonl, and _rule.jsonl for the server's own Gate 1
+    decisions; an optional import file (an earlier store, made by graph_seed.py) is read, never
+    written. Each line: {"t": ..., "author": ..., "col": "items" | "entries", "doc": {...}}.
+    The stage of each item is worked out afresh by replaying its entries in time order.
+    """
+
+    def __init__(self, g):
+        self.g = g
+        self.folder = g["store_dir"]
+        os.makedirs(self.folder, exist_ok=True)
+        self.lock = threading.Lock()
+        self.items, self.entries, self.ids, self.seq = {}, [], set(), 0
+        files = [g["import_file"]] if g.get("import_file") else []
+        files += [os.path.join(self.folder, f) for f in sorted(os.listdir(self.folder)) if f.endswith(".jsonl")]
+        for path in files:
+            with open(path, encoding="utf-8") as f:
+                for n, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        self._apply(json.loads(line))
+                    except (ValueError, KeyError, TypeError) as e:
+                        print("graph: skipped line %d of %s (%s)" % (n, path, e), file=sys.stderr)
+        if g["gate1"] == "rule":  # scores already in the store that pass the rule (an import, or a rule change)
+            with self.lock:
+                for iid in sorted(self.items):
+                    self._rule(iid)
+
+    def _apply(self, rec):
+        col, doc = rec["col"], rec["doc"]
+        if col == "items":
+            self.items.setdefault(doc["id"], doc)
+        elif col == "entries" and doc["_id"] not in self.ids:
+            self.seq += 1
+            doc["_seq"] = self.seq
+            self.entries.append(doc)
+            self.ids.add(doc["_id"])
+
+    def _write(self, author, col, doc):
+        rec = {"t": iso_now(), "author": author, "col": col, "doc": doc}
+        line = json.dumps(rec, ensure_ascii=False)
+        with open(os.path.join(self.folder, safe_name(author) + ".jsonl"), "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+        self._apply(json.loads(line))
+
+    def _voided(self):
+        """A "void" entry (in an imported store only) sets named entries aside; nothing is deleted."""
+        return {i for e in self.entries if e.get("type") == "void" for i in (e.get("entries") or [])}
+
+    def _derive(self, iid, gone=None):
+        it, dec = self.items[iid], self.g["deciders"]
+        gone = self._voided() if gone is None else gone
+        es = sorted((e for e in self.entries if e.get("item") == iid and e.get("type") != "void" and e["_id"] not in gone),
+                    key=lambda e: (str(e.get("at") or ""), e["_seq"]))
+        stage = it.get("stage") if it.get("stage") in GRAPH_STAGES else "in"
+        live, ruled, scores = {}, set(), []
+        hist = [{"at": h.get("at"), "what": h.get("stage") or h.get("what") or "", "by": h.get("by"), "why": h.get("why") or ""}
+                for h in it.get("history") or [] if isinstance(h, dict)]
+        for e in es:
+            t, by, at, to = e.get("type"), e.get("by"), e.get("at"), e.get("to")
+            if t == "score":
+                scores.append(e)
+            elif t == "tick" and (to is None or to in GRAPH_STAGES):
+                said = " Said aloud." if e.get("via") == "spoken" else " From a comment." if e.get("via") == "comment" else ""
+                why = (e.get("why") or "") + said + (" Words: “%s”." % e["quote"] if e.get("quote") else "")
+                if by not in dec:
+                    hist.append({"at": at, "what": "ticked " + GRAPH_STAGE_LABEL.get(to, "(withdrawn)"), "by": by,
+                                 "why": why + " [not counted: not a Gate 2 decider]"})
+                    continue
+                live[by] = e if to else None
+                hist.append({"at": at, "what": "ticked " + GRAPH_STAGE_LABEL[to] if to else "withdrew the tick",
+                             "by": by, "why": why.strip()})
+            elif t == "agree" and to in GRAPH_STAGES:
+                if to != stage and dec and all(live.get(d) and live[d].get("to") == to for d in dec):
+                    stage, live = to, {}
+                    hist.append({"at": at, "what": "moved to " + GRAPH_STAGE_LABEL[to], "by": "+".join(dec),
+                                 "why": "Both ticks named this stage and the move was confirmed."})
+                else:
+                    hist.append({"at": at, "what": "move to " + GRAPH_STAGE_LABEL[to] + " entered", "by": by,
+                                 "why": "[not counted: the ticks did not both name this stage at that moment]"})
+            elif t == "rule":
+                ruled.add(e.get("score"))
+                if stage == "in":
+                    stage = "gate1"
+                    hist.append({"at": at, "what": "passed Gate 1 by rule " + str(e.get("rule", "")), "by": "rule",
+                                 "why": e.get("why") or ""})
+            elif t == "pullback" and stage == "gate1":
+                stage = "in"
+                hist.append({"at": at, "what": "pulled back to In", "by": by, "why": e.get("why") or ""})
+            elif t == "gate" and to in GRAPH_STAGES:  # an older one-person form: never moves an item
+                hist.append({"at": at, "what": "move to " + GRAPH_STAGE_LABEL[to] + " entered for one person", "by": by,
+                             "why": (e.get("why") or "") + " [not counted: an item moves only when both ticks agree]"})
+        ready = None
+        if dec and live.get(dec[0]):
+            t0 = live[dec[0]].get("to")
+            if t0 != stage and all(live.get(d) and live[d].get("to") == t0 for d in dec):
+                ready = t0
+        ticks = {d: {k: v.get(k) for k in ("to", "at", "via", "quote", "entered_by")} for d, v in live.items() if v}
+        return {"stage": stage, "ticks": ticks, "ready": ready, "history": hist,
+                "score": scores[-1]["_id"] if scores else None, "ruled": ruled, "_score": scores[-1] if scores else None}
+
+    def _rule(self, iid):
+        d = self._derive(iid)
+        s = d["_score"]
+        if d["stage"] != "in" or not s or s["_id"] in d["ruled"]:
+            return
+        ok, why = graph_rule_v1(s)
+        if ok:
+            self._write("_rule", "entries", {"_id": "rule-" + s["_id"], "item": iid, "type": "rule", "to": "gate1",
+                                             "rule": GRAPH_RULE, "score": s["_id"], "by": "rule", "why": why,
+                                             "at": iso_now(), "entered_by": "the server, by rule " + GRAPH_RULE})
+
+    def state(self):
+        with self.lock:
+            gone = self._voided()
+            items = []
+            for iid in sorted(self.items):
+                d = self._derive(iid, gone)
+                for k in ("ruled", "_score"):
+                    d.pop(k)
+                items.append(dict(self.items[iid], entered_stage=self.items[iid].get("stage"), **d))
+            # in time order, so the list is the same whichever author's log was read first
+            entries = [{k: v for k, v in e.items() if k != "_seq"}
+                       for e in sorted(self.entries, key=lambda e: (str(e.get("at") or ""), e["_id"]))
+                       if e.get("type") != "void" and e["_id"] not in gone]
+            return json.loads(json.dumps({"items": items, "entries": entries, "voided": len(gone)}))
+
+    def counts(self):
+        with self.lock:
+            return len(self.items), len(self.entries)
+
+    # ---- adding ----
+    def add_item(self, reader, person, body):
+        cat = body.get("category")
+        if cat not in GRAPH_KINDS:
+            raise GraphError("category must be one of: " + ", ".join(GRAPH_KINDS))
+        basis = body.get("basis") or None
+        if basis is not None and basis not in GRAPH_BASIS:
+            raise GraphError("basis must be one of the codes " + ", ".join(GRAPH_BASIS))
+        doc = {"kind": _text(body, "kind", 200) or cat, "category": cat, "words": _text(body, "words", 4000, True),
+               "source": _text(body, "source", 2000), "reference": _text(body, "reference", 2000),
+               "text": _text(body, "text", 50000), "text_extent": _text(body, "text_extent", 200),
+               "next": _text(body, "next", 2000), "basis": basis}
+        # Where in the Deed Reader the item comes from (optional): the deed's number, the scan's id and
+        # the line, which the Deed Reader counts within each scan.
+        deed, line = _whole(body, "deed"), _whole(body, "line")
+        scan = _text(body, "scan", 100)
+        if scan and not re.match(r"[A-Za-z0-9._-]+$", scan):
+            raise GraphError("scan may hold only letters, digits, '.', '_' and '-'")
+        if scan and deed is None:
+            raise GraphError("a scan needs its deed")
+        if line is not None and not scan:
+            raise GraphError("a line needs its scan: the Deed Reader counts lines within each scan")
+        if deed is not None:
+            doc.update(deed=deed, scan=scan or None, line=line)
+        with self.lock:
+            nums = [int(m.group(1)) for m in (re.match(r"HOP-(\d+)$", i) for i in self.items) if m]
+            iid = "HOP-%03d" % (max(nums + [0]) + 1)
+            doc.update({"id": iid, "by": person["id"], "entered": iso_now(), "stage": "in", "history": [],
+                        "schema": "graph-item/1", "entered_by": person["name"] + ", on the server"})
+            self._write(reader, "items", doc)
+        return iid
+
+    def _score(self, body, person):
+        kind = body.get("kind")
+        if kind not in GRAPH_KINDS:
+            raise GraphError("kind must be one of: " + ", ".join(GRAPH_KINDS))
+        out = {"kind": kind, "scorer": person["name"], "provisional": body.get("provisional") is True,
+               "scored_from": _text(body, "scored_from", 500), "criteria": "rule " + GRAPH_RULE + " (strawman of 9 Nov 2026)"}
+        if kind in GRAPH_NINE_KINDS:
+            parts = body.get("parts")
+            if not isinstance(parts, list) or len(parts) != 9:
+                raise GraphError("a %s item is scored on nine criteria" % kind)
+            clean = []
+            for i, p in enumerate(parts, 1):
+                s = p.get("score") if isinstance(p, dict) else None
+                if isinstance(s, bool) or s not in (0, 1, 2):
+                    raise GraphError("each criterion is scored 0, 1 or 2")
+                clean.append({"n": i, "criterion": GRAPH_CRITERIA[i - 1], "score": s, "why": _text(p, "why", 1000)})
+            total, floor = sum(p["score"] for p in clean), sum(p["score"] for p in clean[:4])
+            reading = ("context" if kind == "context" or clean[3]["score"] < 1 or floor < 5
+                       else "strong" if total >= 12 else "checks" if total >= 8 else "hold")
+            out.update(method="nine", parts=clean, total=total, floor_sum=floor, reading=reading)
+        else:
+            answers = body.get("answers")
+            if not isinstance(answers, list) or len(answers) != 3:
+                raise GraphError("a %s item answers three questions" % kind)
+            clean = []
+            for i, a in enumerate(answers, 1):
+                ans = a.get("answer") if isinstance(a, dict) else None
+                if ans not in GRAPH_ANSWERS:
+                    raise GraphError("each answer is one of: " + ", ".join(GRAPH_ANSWERS))
+                clean.append({"n": i, "question": GRAPH_QUESTIONS[kind][i - 1], "answer": ans, "why": _text(a, "why", 1000)})
+            vals = [a["answer"] for a in clean]
+            reading = ("strong" if all(v == "yes" for v in vals) else
+                       "checks" if any(v in ("yes", "partly") for v in vals) else "hold")
+            out.update(method="test", answers=clean, reading=reading)
+        return out
+
+    def add_entry(self, reader, person, body):
+        iid, t = body.get("item"), body.get("type")
+        with self.lock:
+            if iid not in self.items:
+                raise GraphError("no such item", 404)
+            it, d = self.items[iid], self._derive(iid)
+            stage = d["stage"]
+            doc = {"item": iid, "type": t, "by": person["id"], "at": iso_now(),
+                   "entered_by": person["name"] + ", on the server"}
+            if t == "comment":
+                doc["text"] = _text(body, "text", 20000, True)
+            elif t == "revise":
+                doc.update(words=_text(body, "words", 4000, True), why=_text(body, "why", 2000, True))
+            elif t == "excerpt":
+                q = _text(body, "quote", 5000, True)
+                if not it.get("text") or norm_ws(q) not in norm_ws(it["text"]):
+                    raise GraphError("an excerpt must be copied exactly from the item's primary text")
+                doc.update(quote=q, location=_text(body, "location", 200))
+            elif t == "score":
+                doc.update(self._score(body, person))
+            elif t == "pullback":
+                if stage != "gate1":
+                    raise GraphError("only an item at Gate 1 can be pulled back", 409)
+                doc.update(to="in", why=_text(body, "why", 2000, True))
+            elif t in ("tick", "agree"):
+                if reader != self.g["recorder"]:
+                    raise GraphError("Gate 2 is recorded only from the gate's recorder's link", 403)
+                to, allowed = body.get("to"), GRAPH_NEXT.get(stage, ())
+                if t == "tick":
+                    by = body.get("by")
+                    if by not in self.g["deciders"]:
+                        raise GraphError("not one of the gate's deciders")
+                    if to is not None and to not in allowed:
+                        raise GraphError("an item at %s cannot be ticked for %s" % (stage, to), 409)
+                    doc.update(by=by, to=to)
+                    if by != person["id"]:
+                        doc["via"] = "spoken"  # K13: said aloud on a call, entered by the recorder
+                    quote = _text(body, "quote", 1000)
+                    if quote:
+                        doc["quote"] = quote
+                    if to is None:
+                        doc["why"] = "withdrawn"
+                else:
+                    if to not in allowed or d["ready"] != to:
+                        raise GraphError("both deciders' ticks must name this stage first", 409)
+                    doc["to"] = to
+            else:
+                raise GraphError("type must be comment, revise, excerpt, score, pullback, tick or agree")
+            doc["_id"] = "e-%s-%s" % (time.strftime("%Y%m%d%H%M%S", time.gmtime()), os.urandom(4).hex())
+            self._write(reader, "entries", doc)
+            if t == "score" and self.g["gate1"] == "rule":
+                self._rule(iid)
+            return doc["_id"]
+
+
 class Config:
     def __init__(self, path):
         base = os.path.dirname(os.path.abspath(path))
@@ -162,6 +526,40 @@ class Config:
         self.ask_answers_dir = p(c.get("ask_answers_dir", os.path.join(os.path.dirname(self.store_dir), "answers")))
         self.ask_max_tokens = int(c.get("ask_max_tokens", ASK_MAX_TOKENS))
         self.ask_timeout = int(c.get("ask_timeout", ASK_TIMEOUT))
+        # 0.3: the knowledge graph, on only with a "graph" section (see server.example.json).
+        self.graph = None
+        g = c.get("graph")
+        if g:
+            people = {}
+            for reader, v in (g.get("people") or {}).items():
+                if not (isinstance(v, dict) and re.match(r"[a-z0-9_-]{1,40}$", str(v.get("id", ""))) and
+                        v.get("role") in ("author", "reader")):
+                    sys.exit("graph.people.%s needs an id (a-z, 0-9, _ or -) and a role, author or reader." % reader)
+                people[reader] = dict(v, name=v.get("name") or reader)
+            # K17: names and badges to show, which open nothing. To make a label a member, move its
+            # entry to "people" and give it a role.
+            labels, ids = {}, {v["id"] for v in people.values()}
+            for reader, v in (g.get("labels") or {}).items():
+                if not (isinstance(v, dict) and re.match(r"[a-z0-9_-]{1,40}$", str(v.get("id", "")))):
+                    sys.exit("graph.labels.%s needs an id (a-z, 0-9, _ or -)." % reader)
+                if reader in people or v["id"] in ids:
+                    sys.exit("graph.labels.%s is also in graph.people; keep it in one place." % reader)
+                ids.add(v["id"])
+                labels[reader] = {k: v[k] for k in ("id", "badge", "color", "color_dark") if k in v}
+                labels[reader]["name"] = v.get("name") or reader
+            gate2 = g.get("gate2") or {}
+            self.graph = {"content_file": p(g["content_file"]) if g.get("content_file") else None,
+                          "store_dir": p(g.get("store_dir", os.path.join(os.path.dirname(self.store_dir), "graph"))),
+                          "import_file": p(g["import_file"]) if g.get("import_file") else None,
+                          "gate1": g.get("gate1", "rule"), "people": people, "labels": labels,
+                          "recorder": gate2.get("recorder"), "deciders": list(gate2.get("deciders") or [])}
+            if self.graph["gate1"] not in ("rule", "hold"):
+                sys.exit("graph.gate1 must be \"rule\" or \"hold\".")
+            if self.graph["recorder"] and people.get(self.graph["recorder"], {}).get("role") != "author":
+                sys.exit("graph.gate2.recorder must be one of graph.people with the role author.")
+            for f in (self.graph["content_file"], self.graph["import_file"]):
+                if f and not os.path.isfile(f):
+                    sys.exit("Missing: " + f)
 
 
 class Asker:
@@ -295,10 +693,33 @@ def load_tokens(path):
     return out
 
 
-def make_handler(cfg, store, tokens, asker):
+def graph_people(cfg, content):
+    """Everyone the graph shows by name: the content file's people, the settings' labels (which open
+    nothing), then the settings' people."""
+    out = {}
+    for v in (content or {}).get("people") or []:
+        if isinstance(v, dict) and v.get("id"):
+            out[v["id"]] = dict(v)
+    for v in cfg.graph["labels"].values():
+        out[v["id"]] = dict(out.get(v["id"], {}), **v)
+    for reader, v in cfg.graph["people"].items():
+        out[v["id"]] = dict(out.get(v["id"], {}), **{k: v[k] for k in ("id", "name", "badge", "color", "color_dark")
+                                                     if k in v})
+    return list(out.values())
+
+
+def make_handler(cfg, store, tokens, asker, graph=None, gcontent=None):
     allowed_static = {"/deed_reader.html": os.path.join(cfg.form_dir, "deed_reader.html"),
                       "/" + cfg.data_file.strip("/"): os.path.join(cfg.form_dir, cfg.data_file)}
     log_lock = threading.Lock()
+
+    def graph_person(reader):
+        return cfg.graph["people"].get(reader) if graph else None
+
+    def graph_me(reader):
+        p = graph_person(reader)
+        return {"reader": reader, "id": p["id"], "name": p["name"], "role": p["role"],
+                "recorder": reader == cfg.graph["recorder"]}
 
     def who(tok):
         if not tok:
@@ -382,7 +803,8 @@ def make_handler(cfg, store, tokens, asker):
                     return self.deny()
                 self.send_response(303)
                 self.send_header("Set-Cookie", "%s=%s; HttpOnly; SameSite=Strict; Path=/" % (COOKIE, tok))
-                self.send_header("Location", "/deed_reader.html")
+                # the link may open the graph instead of the form: /graph.html?t=TOKEN
+                self.send_header("Location", "/graph.html" if graph and u.path == "/graph.html" else "/deed_reader.html")
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 return
@@ -396,9 +818,44 @@ def make_handler(cfg, store, tokens, asker):
                 self.end_headers()
                 return
             if path == "/api/me":
+                gp = graph_person(reader)
                 return self.send_json(200, {"reader": reader, "server": VERSION, "readers": sorted({r for _, r in tokens}),
                                             "ask": asker.on(),
-                                            "ask_models": [{"id": k, "label": v} for k, v in asker.models.items()]})
+                                            "ask_models": [{"id": k, "label": v} for k, v in asker.models.items()],
+                                            "graph": gp["role"] if gp else None})
+            if graph and (path == "/graph.html" or path.startswith("/api/graph")):
+                if not graph_person(reader):
+                    return self.send_text(403, "<p>The knowledge graph is not open to this reader.</p>")
+                if path == "/graph.html":
+                    return self.send_file(os.path.join(cfg.form_dir, "graph.html"), cache=False)
+                if path == "/api/graph":
+                    st = graph.state()
+                    st.update(t=iso_now(), me=graph_me(reader), gate1=cfg.graph["gate1"], rule=GRAPH_RULE,
+                              deciders=cfg.graph["deciders"])
+                    return self.send_json(200, st)
+                if path == "/api/graph/content":
+                    return self.send_json(200, {"content": gcontent or {}, "people": graph_people(cfg, gcontent),
+                                                "me": graph_me(reader), "kinds": GRAPH_KINDS,
+                                                "nine_kinds": GRAPH_NINE_KINDS, "criteria": GRAPH_CRITERIA,
+                                                "questions": GRAPH_QUESTIONS, "answers": GRAPH_ANSWERS,
+                                                "basis": GRAPH_BASIS, "stages": GRAPH_STAGE_LABEL,
+                                                "next": GRAPH_NEXT, "deciders": cfg.graph["deciders"],
+                                                "gate1": cfg.graph["gate1"], "rule": GRAPH_RULE})
+                if path == "/api/graph/export":
+                    out = graph.state()
+                    out = {"exported": iso_now(), "server": VERSION, "rule": GRAPH_RULE, "content": gcontent or {},
+                           "people": graph_people(cfg, gcontent), "items": out["items"], "entries": out["entries"]}
+                    body = json.dumps(out, ensure_ascii=False, indent=1).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json; charset=utf-8")
+                    self.send_header("Content-Disposition",
+                                     'attachment; filename="graph-export-%s.json"' % time.strftime("%Y%m%d-%H%M"))
+                    self.send_header("Content-Length", str(len(body)))
+                    self.send_header("Cache-Control", "no-store")
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                return self.send_text(404, "Not found.")
             if path == "/api/ask":
                 code, out = asker.collect(reader, (q.get("id") or [""])[0])
                 return self.send_json(code, out)
@@ -458,6 +915,20 @@ def make_handler(cfg, store, tokens, asker):
                 # Answered later: the browser collects the answer with GET /api/ask?id=..., so no
                 # connection is held open while the model thinks (the cluster drops long silent ones).
                 return self.send_json(202, asker.start(reader, qid, model, question, image))
+            if path == "/api/graph" and graph:
+                p = graph_person(reader)
+                if not p:
+                    return self.send_json(403, {"error": "the knowledge graph is not open to this reader"})
+                if p["role"] != "author":
+                    return self.send_json(403, {"error": "this reader may read the graph but not add to it"})
+                try:
+                    if body.get("op") == "item":
+                        return self.send_json(200, {"added": graph.add_item(reader, p, body.get("item") or {})})
+                    if body.get("op") == "entry":
+                        return self.send_json(200, {"added": graph.add_entry(reader, p, body.get("entry") or {})})
+                except GraphError as e:
+                    return self.send_json(e.code, {"error": str(e)})
+                return self.send_json(400, {"error": "op must be item or entry"})
             return self.send_json(404, {"error": "no such endpoint"})
 
     return H
@@ -474,7 +945,15 @@ def main():
         if not os.path.isfile(need):
             sys.exit("Missing: " + need)
     asker = Asker(cfg)
-    srv = ThreadingHTTPServer((cfg.bind, cfg.port), make_handler(cfg, store, tokens, asker))
+    graph, gcontent = None, None
+    if cfg.graph:
+        if not os.path.isfile(os.path.join(cfg.form_dir, "graph.html")):
+            sys.exit("Missing: " + os.path.join(cfg.form_dir, "graph.html"))
+        if cfg.graph["content_file"]:
+            with open(cfg.graph["content_file"], encoding="utf-8") as f:
+                gcontent = json.load(f)
+        graph = GraphStore(cfg.graph)
+    srv = ThreadingHTTPServer((cfg.bind, cfg.port), make_handler(cfg, store, tokens, asker, graph, gcontent))
     host = socket.gethostname()
     print("Deed Reader server %s started %s on %s, port %d" % (VERSION, now(), host, cfg.port))
     print("Readers with tokens: %s" % ", ".join(sorted({r for _, r in tokens})))
@@ -484,6 +963,13 @@ def main():
               % (", ".join(asker.models.values()), asker.max_tokens, asker.timeout))
     else:
         print("Asking the cluster's models: off (no DHINFRA_API_KEY in this job's environment)")
+    if graph:
+        ni, ne = graph.counts()
+        print("Knowledge graph: on (%d items, %d entries; Gate 1 %s); open to: %s"
+              % (ni, ne, "by rule " + GRAPH_RULE if cfg.graph["gate1"] == "rule" else "held",
+                 ", ".join("%s (%s)" % (r, v["role"]) for r, v in sorted(cfg.graph["people"].items()))))
+    else:
+        print("Knowledge graph: off (no graph section in the settings)")
     if cfg.bind == "127.0.0.1":
         print("Open: http://localhost:%d/?t=<your token>" % cfg.port)
     else:

@@ -20,6 +20,10 @@ into a temporary folder that is removed at the end; no token is ever printed.
 7. The settings are checked at start: a port reserved on DHinfra (8080, 21800-21899) and a token
    shorter than 20 characters are refused.
 8. No token appears in what the server prints or in its access log.
+9. (0.3) The knowledge graph, with invented people and content only: who may open it and who may
+   add to it; the author taken from the token; nothing overwritten; Gate 1 by rule and pull-back;
+   Gate 2 only from the recorder's link, with both ticks; an imported store, with a void; a
+   restart; the export, with no token in it; malformed settings refused.
 """
 import http.server
 import json
@@ -78,7 +82,10 @@ def server_env(key=None):
     return env
 
 
-class ServerTest(unittest.TestCase):
+class ServerHarness(unittest.TestCase):
+    """Starts server.py on this computer with invented readers; the tests are in the classes below."""
+    READERS = ("Anna", "Ben")
+
     @classmethod
     def setUpClass(cls):
         cls.tmp = pathlib.Path(tempfile.mkdtemp(prefix="deed-reader-server-test-"))
@@ -88,8 +95,9 @@ class ServerTest(unittest.TestCase):
         (t / "scans" / "note.txt").write_text("not an image", encoding="utf-8")
         (t / "outside.png").write_bytes(tiny_png())          # beside the scan folder, never to be served
         cls.tokens_file = t / "tokens.json"
-        r = subprocess.run([sys.executable, "-I", str(HERE / "make_tokens.py"), "--out", str(cls.tokens_file),
-                            "Anna", "Ben"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+        cls.prepare()
+        r = subprocess.run([sys.executable, "-I", str(HERE / "make_tokens.py"), "--out", str(cls.tokens_file)]
+                           + list(cls.READERS), stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
         assert r.returncode == 0, r.stderr
         toks = json.loads(cls.tokens_file.read_text(encoding="utf-8"))
         cls.tok = {v["reader"]: k for k, v in toks.items()}
@@ -106,6 +114,10 @@ class ServerTest(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)  # only the temporary folder this test made
 
     # ---- helpers ----
+    @classmethod
+    def prepare(cls):
+        """Anything a test class needs in its temporary folder before the server starts."""
+
     @classmethod
     def write_cfg(cls, name, **over):
         c = {"bind": "127.0.0.1", "port": 8765, "form_dir": str(HERE), "data_file": DATA,
@@ -171,6 +183,8 @@ class ServerTest(unittest.TestCase):
         p = self.tmp / "store" / "readings" / (reader + ".jsonl")
         return p.read_text(encoding="utf-8").splitlines() if p.exists() else []
 
+
+class ServerTest(ServerHarness):
     # ---- 1. refusals ----
     def test_01_refused_without_a_token(self):
         for path in ("/", "/deed_reader.html", "/" + DATA, "/api/me", "/api/state", "/scans/page1.png"):
@@ -317,6 +331,343 @@ class ServerTest(unittest.TestCase):
         for who, t in self.tok.items():            # assertFalse, so a failure names the reader, never the token
             self.assertFalse(t in printed, "%s's token was printed" % who)
             self.assertFalse(t in log, "%s's token is in the access log" % who)
+
+
+def score_nine(kind, scores, why="test"):
+    return {"type": "score", "kind": kind, "parts": [{"score": s, "why": why} for s in scores]}
+
+
+def score_three(kind, answers):
+    return {"type": "score", "kind": kind, "answers": [{"answer": a, "why": "test"} for a in answers]}
+
+
+class GraphTest(ServerHarness):
+    """9. The knowledge graph. Every person, item and text here is invented.
+    Anna and Ben may add; Cara may only read; Dora has a token but no graph. Gate 2's deciders are
+    Anna and Mia; Mia has no token, so Anna, the recorder, enters Mia's ticks as said aloud."""
+    READERS = ("Anna", "Ben", "Cara", "Dora")
+    PEOPLE = {"Anna": {"id": "anna", "name": "Anna Example", "badge": "AE", "role": "author"},
+              "Ben": {"id": "ben", "name": "Ben Example", "role": "author"},
+              "Cara": {"id": "cara", "name": "Cara Example", "role": "reader"}}
+    # K17: Dora has a label (a name and badge to show) but no place in people, so the graph stays shut to her.
+    LABELS = {"Dora": {"id": "dora", "name": "Dora Example", "badge": "DE", "color": "#55606a"}}
+    TEXT = "The ship Example sailed from Port A to Port B in 1650, her master John Doe."
+
+    @classmethod
+    def prepare(cls):
+        t = cls.tmp
+        (t / "content.json").write_text(json.dumps({
+            "title": "Invented test graph",
+            "people": [{"id": "mia", "name": "Mia Example", "badge": "ME"}, {"id": "base", "name": "Base graph"}],
+            "graph": {"nodes": [{"id": "n1", "type": "Ship", "label": "Example"},
+                                {"id": "n2", "type": "Place", "label": "Port A"}],
+                      "edges": [{"source": "n1", "target": "n2", "type": "sailed_from", "confidence": "strong"}]}}),
+            encoding="utf-8")
+        # An earlier store, as graph_seed.py writes it: one item, a passing score, a tick and its void.
+        rec = lambda col, doc: json.dumps({"t": "2026-11-01T10:00:00Z", "author": "import", "col": col, "doc": doc})
+        (t / "import.jsonl").write_text("\n".join([
+            rec("items", {"id": "HOP-001", "kind": "candidate identity", "words": "Is John Doe the same man?",
+                          "by": "mia", "entered": "2026-11-01T09:00", "stage": "in", "history": [], "text": cls.TEXT}),
+            rec("entries", {"_id": "imp-score", "item": "HOP-001", "type": "score", "by": "anna",
+                            "at": "2026-11-01T10:00:00Z", "kind": "identity", "method": "test",
+                            "answers": [{"n": i, "answer": "yes"} for i in (1, 2, 3)]}),
+            rec("entries", {"_id": "imp-tick", "item": "HOP-001", "type": "tick", "by": "anna", "to": "aside",
+                            "at": "2026-11-01T10:01:00Z"}),
+            rec("entries", {"_id": "imp-void", "item": "HOP-001", "type": "void", "by": "anna", "entries": ["imp-tick"],
+                            "at": "2026-11-01T10:02:00Z", "why": "a test tick"})]) + "\n", encoding="utf-8")
+        (HERE / "graph.html").stat()  # the page must exist in the deed-reader folder
+
+    @classmethod
+    def write_cfg(cls, name, **over):
+        graph = {"content_file": str(cls.tmp / "content.json"), "import_file": str(cls.tmp / "import.jsonl"),
+                 "store_dir": str(cls.tmp / "store" / "graph"), "gate1": "rule", "people": cls.PEOPLE,
+                 "labels": cls.LABELS, "gate2": {"recorder": "Anna", "deciders": ["anna", "mia"]}}
+        graph.update(over.pop("graph", {}))
+        return ServerHarness.write_cfg.__func__(cls, name, graph=graph, **over)
+
+    # ---- helpers ----
+    def g(self, who="Anna"):
+        code, _, b = self.req("/api/graph", bearer=self.tok[who])
+        self.assertEqual(code, 200)
+        return json.loads(b)
+
+    def item(self, iid, who="Anna"):
+        return next(i for i in self.g(who)["items"] if i["id"] == iid)
+
+    def post(self, who, op, obj):
+        code, _, b = self.req("/api/graph", bearer=self.tok[who], body={"op": op, op: obj})
+        return code, json.loads(b)
+
+    def add(self, who="Anna", **over):
+        it = {"category": "voyage", "kind": "candidate voyage", "words": "The Example may have sailed twice.",
+              "text": self.TEXT, "source": "an invented deposition", "next": "Read it again."}
+        it.update(over)
+        code, r = self.post(who, "item", it)
+        self.assertEqual(code, 200, r)
+        return r["added"]
+
+    def entry(self, who, iid, **e):
+        e["item"] = iid
+        return self.post(who, "entry", e)
+
+    def graph_lines(self, reader):
+        p = self.tmp / "store" / "graph" / (reader + ".jsonl")
+        return p.read_text(encoding="utf-8").splitlines() if p.exists() else []
+
+    # ---- tests ----
+    def test_g01_who_may_open_the_graph(self):
+        for path in ("/graph.html", "/api/graph", "/api/graph/content", "/api/graph/export"):
+            self.assertEqual(self.req(path)[0], 401, path)
+            self.assertEqual(self.req(path, bearer=self.tok["Dora"])[0], 403, "Dora opened " + path)
+            for who in ("Anna", "Cara"):
+                self.assertEqual(self.req(path, bearer=self.tok[who])[0], 200, who + " " + path)
+        self.assertEqual(self.post("Dora", "item", {"category": "voyage", "words": "x"})[0], 403)
+        code, _, b = self.req("/graph.html", cookie=self.tok["Ben"])
+        self.assertEqual(code, 200)
+        self.assertIn(b"/api/graph", b)
+        code, h, _ = self.req("/graph.html?t=" + self.tok["Ben"])
+        self.assertEqual((code, h["Location"]), (303, "/graph.html"), "the graph link went elsewhere")
+        self.assertNotIn(self.tok["Ben"], h["Location"])
+        self.assertEqual(self.req("/?t=" + self.tok["Ben"])[1]["Location"], "/deed_reader.html")
+        roles = {w: json.loads(self.req("/api/me", bearer=self.tok[w])[2])["graph"] for w in self.READERS}
+        self.assertEqual(roles, {"Anna": "author", "Ben": "author", "Cara": "reader", "Dora": None})
+
+    def test_g02_a_reader_may_read_but_not_add(self):
+        before = self.g("Cara")
+        self.assertEqual(self.post("Cara", "item", {"category": "voyage", "words": "Cara's idea"})[0], 403)
+        self.assertEqual(self.entry("Cara", "HOP-001", type="comment", text="Cara's comment")[0], 403)
+        self.assertEqual(self.graph_lines("Cara"), [])
+        after = self.g("Cara")
+        self.assertEqual((before["items"], before["entries"]), (after["items"], after["entries"]))
+        self.assertEqual(after["me"], {"reader": "Cara", "id": "cara", "name": "Cara Example", "role": "reader",
+                                       "recorder": False})
+
+    def test_g03_additions_are_signed_by_the_token_and_seen_by_all(self):
+        iid = self.add("Ben", by="anna", entered_by="Anna", stage="approved", id="HOP-900")
+        self.assertRegex(iid, r"^HOP-\d{3}$")
+        self.assertNotEqual(iid, "HOP-900", "the browser chose the id")
+        for who in ("Anna", "Ben", "Cara"):
+            it = self.item(iid, who)
+            self.assertEqual((it["by"], it["stage"]), ("ben", "in"), who)
+            self.assertIn("Ben Example", it["entered_by"])
+        self.assertEqual(len(self.graph_lines("Ben")), 1)
+        self.assertEqual(self.graph_lines("Anna"), [], "Ben's item was filed under Anna")
+        code, r = self.entry("Anna", iid, by="ben", text="Anna writes this", type="comment")
+        self.assertEqual(code, 200, r)
+        c = [e for e in self.g("Ben")["entries"] if e["_id"] == r["added"]][0]
+        self.assertEqual(c["by"], "anna", "a comment was filed under the name the browser sent")
+        content = json.loads(self.req("/api/graph/content", bearer=self.tok["Ben"])[2])
+        self.assertEqual({p["id"] for p in content["people"]}, {"mia", "base", "anna", "ben", "cara", "dora"})
+        dora = next(p for p in content["people"] if p["id"] == "dora")
+        self.assertEqual((dora["name"], dora["badge"]), ("Dora Example", "DE"))
+        self.assertNotIn("role", dora, "a label was given a role")
+        self.assertEqual(content["content"]["title"], "Invented test graph")
+
+    def test_g04_nothing_is_overwritten(self):
+        iid = self.add("Anna", words="First wording.")
+        lines = self.graph_lines("Anna")
+        code, r = self.entry("Anna", iid, type="revise", words="Second wording.", why="clearer")
+        self.assertEqual(code, 200, r)
+        code, r = self.entry("Ben", iid, type="excerpt", quote="sailed from  Port A", location="line 1")
+        self.assertEqual(code, 200, r)
+        now = self.graph_lines("Anna")
+        self.assertEqual(now[:len(lines)], lines, "an earlier line was changed")
+        self.assertEqual(len(now), len(lines) + 1)
+        it = self.item(iid)
+        self.assertEqual(it["words"], "First wording.", "the item itself was changed")
+        revs = [e for e in self.g()["entries"] if e["item"] == iid and e["type"] == "revise"]
+        self.assertEqual(revs[0]["words"], "Second wording.")
+        self.assertEqual(self.post("Anna", "update", {"id": iid, "words": "x"})[0], 400)
+        self.assertEqual(self.add("Anna", id=iid) != iid, True, "an item was added under an id in use")
+
+    def test_g05_malformed_additions_refused(self):
+        before = sum(len(self.graph_lines(w)) for w in ("Anna", "Ben"))
+        bad_items = [{"category": "rumour", "words": "x"}, {"category": "voyage", "words": "  "},
+                     {"category": "voyage", "words": "x", "basis": "Z"}, {"category": "voyage", "words": "x" * 4001},
+                     {"category": "voyage", "words": ["x"]}]
+        for it in bad_items:
+            self.assertEqual(self.post("Anna", "item", it)[0], 400, it)
+        for e in (dict(type="comment", text=""), dict(type="excerpt", quote="not in the text at all"),
+                  dict(type="revise", words="new", why=""), dict(type="delete"),
+                  score_nine("voyage", [2] * 8), score_nine("voyage", [3] + [2] * 8),
+                  score_nine("voyage", [True] + [2] * 8), score_three("identity", ["yes", "yes", "maybe"]),
+                  score_three("identity", ["yes", "yes"]), dict(type="score", kind="gossip")):
+            self.assertEqual(self.entry("Anna", "HOP-001", **e)[0], 400, e)
+        self.assertEqual(self.entry("Anna", "HOP-404", type="comment", text="x")[0], 404)
+        self.assertEqual(self.req("/api/graph", bearer=self.tok["Anna"], raw=b"not json")[0], 400)
+        self.assertEqual(sum(len(self.graph_lines(w)) for w in ("Anna", "Ben")), before, "a refused addition was kept")
+
+    def test_g06_import_void_and_gate_1_by_rule(self):
+        it = self.item("HOP-001")
+        self.assertEqual(it["stage"], "gate1", "the imported passing score did not pass Gate 1 at start")
+        self.assertEqual(it["ticks"], {}, "a voided tick still counts")
+        self.assertEqual(self.g()["voided"], 1)
+        self.assertNotIn("imp-tick", [e["_id"] for e in self.g()["entries"]])
+        self.assertTrue(any("by rule v1" in h["what"] for h in it["history"]))
+        strong = self.add("Anna")
+        code, r = self.entry("Ben", strong, **score_nine("voyage", [2, 1, 1, 1, 2, 2, 1, 1, 1]))   # 12; 1-4 = 5
+        self.assertEqual(code, 200, r)
+        self.assertEqual(self.item(strong)["stage"], "gate1")
+        s = [e for e in self.g()["entries"] if e["_id"] == r["added"]][0]
+        self.assertEqual((s["total"], s["floor_sum"], s["reading"], s["scorer"], s["method"]),
+                         (12, 5, "strong", "Ben Example", "nine"))
+        weak = self.add("Anna")
+        self.entry("Ben", weak, **score_nine("voyage", [2, 2, 2, 0, 2, 2, 2, 2, 2]))        # 16, but criterion 4 is 0
+        self.entry("Ben", weak, **score_nine("organisation", [1, 1, 1, 1, 2, 2, 1, 1, 1]))  # 11
+        self.assertEqual(self.item(weak)["stage"], "in")
+        ctx = self.add("Anna", category="context")
+        self.entry("Ben", ctx, **score_nine("context", [2] * 9))
+        self.assertEqual(self.item(ctx)["stage"], "in", "a context item passed Gate 1 by rule")
+        lead = self.add("Anna", category="source lead")
+        self.entry("Anna", lead, **score_three("source lead", ["yes", "partly", "yes"]))
+        self.assertEqual(self.item(lead)["stage"], "in")
+        self.entry("Anna", lead, **score_three("source lead", ["yes", "yes", "yes"]))
+        self.assertEqual(self.item(lead)["stage"], "gate1")
+        self.assertTrue(any(json.loads(l)["doc"]["type"] == "rule" for l in self.graph_lines("_rule")))
+
+    def test_g07_pull_back(self):
+        iid = self.add("Anna", category="identity")
+        self.entry("Anna", iid, **score_three("identity", ["yes"] * 3))
+        self.assertEqual(self.item(iid)["stage"], "gate1")
+        self.assertEqual(self.entry("Ben", iid, type="pullback", why="")[0], 400, "a pull-back without a reason")
+        code, r = self.entry("Ben", iid, type="pullback", why="the passage is misread")
+        self.assertEqual(code, 200, r)
+        self.assertEqual(self.item(iid)["stage"], "in")
+        self.assertEqual(self.entry("Ben", iid, type="pullback", why="again")[0], 409)
+        type(self).stop()
+        type(self).start()
+        self.assertEqual(self.item(iid)["stage"], "in", "the same score passed the item again after a restart")
+        self.entry("Ben", iid, **score_three("identity", ["yes"] * 3))
+        self.assertEqual(self.item(iid)["stage"], "gate1", "a new passing score did not pass")
+
+    def test_g08_gate_2_by_two_ticks_from_the_recorder_only(self):
+        iid = self.add("Ben", category="identity")
+        self.entry("Ben", iid, **score_three("identity", ["yes"] * 3))
+        self.assertEqual(self.item(iid)["stage"], "gate1")
+        self.assertEqual(self.entry("Ben", iid, type="tick", by="ben", to="approved")[0], 403)
+        self.assertEqual(self.entry("Ben", iid, type="tick", by="anna", to="approved")[0], 403)
+        self.assertEqual(self.entry("Anna", iid, type="tick", by="ben", to="approved")[0], 400, "Ben is no decider")
+        self.assertEqual(self.entry("Anna", iid, type="tick", by="anna", to="in")[0], 409, "Gate 1 to In by ticks")
+        self.assertEqual(self.entry("Anna", iid, type="tick", by="anna", to="approved")[0], 200)
+        self.assertEqual(self.entry("Anna", iid, type="agree", to="approved")[0], 409, "agreed on one tick")
+        code, r = self.entry("Anna", iid, type="tick", by="mia", to="approved", quote="Yes, approve it")
+        self.assertEqual(code, 200, r)
+        it = self.item(iid)
+        self.assertEqual((it["ready"], it["ticks"]["mia"]["via"]), ("approved", "spoken"))
+        self.assertEqual(it["stage"], "gate1", "two ticks moved the item without the confirm")
+        self.assertEqual(self.entry("Anna", iid, type="agree", to="approved")[0], 200)
+        it = self.item(iid)
+        self.assertEqual((it["stage"], it["ticks"], it["ready"]), ("approved", {}, None))
+        fresh = self.add("Anna")
+        self.assertEqual(self.entry("Anna", fresh, type="tick", by="anna", to="gate1")[0], 409,
+                         "Gate 1 was ticked by hand")
+
+    def test_g09_restart_replays_the_same_graph(self):
+        before = self.g()
+        type(self).stop()
+        type(self).start()
+        after = self.g()
+        for k in ("items", "entries", "voided"):
+            self.assertEqual(after[k], before[k], k)
+
+    def test_g10_export_has_everything_and_no_token(self):
+        self.add("Ben", words="For the export.")
+        code, h, b = self.req("/api/graph/export", bearer=self.tok["Cara"])
+        self.assertEqual(code, 200)
+        self.assertIn("attachment", h["Content-Disposition"])
+        text = b.decode("utf-8")
+        ex = json.loads(text)
+        self.assertIn("For the export.", [i["words"] for i in ex["items"]])
+        self.assertEqual(ex["content"]["title"], "Invented test graph")
+        for who, t in self.tok.items():
+            self.assertFalse(t in text, "%s's token is in the export" % who)
+        files = [p.read_text(encoding="utf-8") for p in (self.tmp / "store" / "graph").glob("*.jsonl")]
+        for who, t in self.tok.items():
+            self.assertFalse(any(t in f for f in files), "%s's token is in the graph's logs" % who)
+
+    def test_g11_malformed_graph_settings_refused(self):
+        for over, says in (({"gate1": "sometimes"}, "graph.gate1"),
+                           ({"gate2": {"recorder": "Cara", "deciders": ["cara"]}}, "recorder"),
+                           ({"people": {"Anna": {"id": "Anna Example!", "role": "author"}}}, "graph.people"),
+                           ({"labels": {"Anna": {"id": "anna2"}}}, "keep it in one place"),
+                           ({"labels": {"Eve": {"id": "cara"}}}, "keep it in one place"),
+                           ({"labels": {"Eve": {"name": "No id"}}}, "graph.labels.Eve"),
+                           ({"content_file": str(self.tmp / "missing.json")}, "Missing")):
+            cfg = self.write_cfg("bad_graph.json", port=free_port(), graph=over)
+            r = subprocess.run([sys.executable, "-I", str(HERE / "server.py"), "--config", str(cfg)],
+                               capture_output=True, text=True, timeout=30)
+            self.assertNotEqual(r.returncode, 0, over)
+            self.assertIn(says, r.stderr, over)
+
+    def test_g12_held_gate_1(self):
+        cfg = self.write_cfg("held.json", port=free_port(), graph={"gate1": "hold",
+                                                                    "store_dir": str(self.tmp / "held")})
+        p = subprocess.Popen([sys.executable, "-I", "-u", str(HERE / "server.py"), "--config", str(cfg)],
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8",
+                             env=server_env())
+        try:
+            port = json.loads(cfg.read_text(encoding="utf-8"))["port"]
+            for _ in range(100):
+                try:
+                    with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                        break
+                except OSError:
+                    time.sleep(0.1)
+            r = urllib.request.Request("http://127.0.0.1:%d/api/graph" % port,
+                                       headers={"Authorization": "Bearer " + self.tok["Anna"]})
+            with OPENER.open(r, timeout=10) as resp:
+                st = json.loads(resp.read())
+            self.assertEqual(st["gate1"], "hold")
+            self.assertEqual(next(i for i in st["items"] if i["id"] == "HOP-001")["stage"], "in",
+                             "an item passed Gate 1 by rule while the gate was held")
+        finally:
+            p.terminate()
+            out, _ = p.communicate(timeout=10)
+        self.assertIn("Gate 1 held", out)
+        for who, t in self.tok.items():
+            self.assertFalse(t in out, "%s's token was printed" % who)
+
+    def test_g13_provisional_scores_do_not_pass_gate_1(self):
+        # K16 (c): a provisional score, made without re-reading the passage, never passes by rule.
+        iid = self.add("Anna")
+        code, r = self.entry("Ben", iid, provisional=True, **score_nine("voyage", [2] * 9))   # 18 of 18
+        self.assertEqual(code, 200, r)
+        s = [e for e in self.g()["entries"] if e["_id"] == r["added"]][0]
+        self.assertIs(s["provisional"], True)
+        self.assertEqual(self.item(iid)["stage"], "in", "a provisional score passed Gate 1")
+        self.assertFalse(any(json.loads(l)["doc"].get("item") == iid for l in self.graph_lines("_rule")))
+        lead = self.add("Anna", category="identity")
+        self.entry("Anna", lead, provisional=True, **score_three("identity", ["yes"] * 3))
+        self.assertEqual(self.item(lead)["stage"], "in", "a provisional three-question score passed")
+        code, r = self.entry("Ben", iid, **score_nine("voyage", [2] * 9))                   # now re-read
+        self.assertEqual(code, 200, r)
+        it = self.item(iid)
+        self.assertEqual(it["stage"], "gate1", "a score that is not provisional did not pass")
+        self.assertTrue(any("by rule v1.1" in h["what"] for h in it["history"]))
+
+    def test_g14_deed_scan_line_and_basis_codes(self):
+        # (b), 28 Nov 2026: where in the Deed Reader an item comes from, and P always with its code.
+        iid = self.add("Anna", category="identity", deed="12", scan="SCAN-0001.b", line=7, basis="P-MUC")
+        for who in ("Anna", "Ben", "Cara"):
+            it = self.item(iid, who)
+            self.assertEqual((it["deed"], it["scan"], it["line"], it["basis"]), (12, "SCAN-0001.b", 7, "P-MUC"), who)
+        bare = self.add("Anna", deed=3)
+        self.assertEqual((self.item(bare)["deed"], self.item(bare)["scan"], self.item(bare)["line"]), (3, None, None))
+        plain = self.add("Anna", deed="", scan="", line="")
+        self.assertNotIn("deed", self.item(plain), "empty Deed Reader fields were stored")
+        before = len(self.graph_lines("Anna"))
+        for bad in ({"basis": "P"}, {"deed": "twelve"}, {"deed": 0}, {"deed": True}, {"deed": 12.5},
+                    {"deed": 12, "scan": "SCAN 0001"}, {"deed": 12, "scan": "x" * 101},
+                    {"deed": 12, "line": 4}, {"scan": "SCAN-0001"}, {"deed": 12, "scan": "SCAN-0001", "line": 0}):
+            it = {"category": "voyage", "words": "x"}
+            it.update(bad)
+            self.assertEqual(self.post("Anna", "item", it)[0], 400, bad)
+        self.assertEqual(len(self.graph_lines("Anna")), before, "a refused item was kept")
+        content = json.loads(self.req("/api/graph/content", bearer=self.tok["Anna"])[2])
+        self.assertIn("P-MUC", content["basis"])
+        self.assertNotIn("P", content["basis"], "bare P is still offered for new items")
+        page = self.req("/graph.html", bearer=self.tok["Anna"])[2]
+        self.assertIn(b'href="/deed_reader.html"', page, "the graph has no link to the Deed Reader")
 
 
 class PretendModels(http.server.BaseHTTPRequestHandler):

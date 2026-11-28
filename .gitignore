@@ -11,6 +11,11 @@ colin-notes/
 exports/
 queries/
 answers/
+# the knowledge graph's content, import and logs (graph_seed.py output; server 0.3)
+graph_content.json
+import.jsonl
+graph-out/
+graph/
 ground-truth/
 test-set/
 *.jpg

@@ -10,7 +10,24 @@
  "scan_mounts": {
   "/amsterdam-notarial-hopper/english-1640-1680/": "path/to/english-1640-1680"
  },
+ "_graph_example": {
+  "_about": "Rename this key to \"graph\" to switch the knowledge graph on. The names here are invented: give your own readers' names, exactly as in the tokens file.",
+  "content_file": "~/deedreader/graph/graph_content.json",
+  "import_file": "~/deedreader/graph/import.jsonl",
+  "store_dir": "~/deedreader/graph/logs",
+  "gate1": "rule",
+  "people": {
+   "Anna": {"id": "anna", "name": "Anna Example", "badge": "AE", "color": "#13807b", "role": "author"},
+   "Ben": {"id": "ben", "name": "Ben Example", "badge": "BE", "color": "#a8740a", "role": "author"},
+   "Cara": {"id": "cara", "name": "Cara Example", "role": "reader"}
+  },
+  "labels": {
+   "Visitor": {"id": "visitor", "name": "Visitor", "badge": "VIS", "color": "#55606a", "color_dark": "#aab4bc"}
+  },
+  "gate2": {"recorder": "Anna", "deciders": ["anna", "mia"]}
+ },
  "_notes": {
+  "graph": "The knowledge graph (graph.html). A reader not named under people cannot open it; role reader may read, role author may also add. labels: names and badges to show for readers who may not open the graph (a label opens nothing; to make one a member, move its entry to people and give it a role; a reader or id may not be in both). content_file (the people, texts and base network) and import_file (an earlier store, from graph_seed.py) stay outside the repository. gate1: rule (Gate 1 passed by the rule in server.py, graph_rule_v1, now v1.1: a provisional score never passes) or hold (nothing passes). gate2: the recorder is the only reader whose link can record Gate 2 ticks; deciders are person ids, and a decider with no token (mia here) is ticked by the recorder as said aloud.",
   "bind": "127.0.0.1 on a laptop; 0.0.0.0 in a cluster job, so the tunnel through the head node can reach it.",
   "port": "Not 8080 and not 21800-21899 (reserved on DHinfra).",
   "scan_mounts": "URL prefix -> folder. The prefix is where the scan paths in the data file land when the browser resolves them against /deed_reader.html (leading ../ steps stop at the root).",

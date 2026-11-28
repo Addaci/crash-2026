@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Knowledge Graph</title>
+<!--
+  Knowledge graph page of the Deed Reader team server (server.py 0.3), 28 November 2026.
+  A port of the ML-088 design: a network with an evidence panel, and a Hopper where every
+  candidate enters first and reaches the graph only through two gates. This file holds no
+  research content and names nobody: the people, the texts and the base network come from the
+  server (/api/graph/content), read from a file kept outside the repository.
+  Everything is add-only (K4): the page adds items and entries; it never changes or deletes one.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+ --bg:#f3f4f2;--panel:#fff;--fg:#1d2326;--muted:#5d686d;--rule:#d5dad9;--focus:#0f6fb0;--edge:#7c878c;--ok:#2f7a3a;--warn:#9b2f4a;
+ --eng:#2f5d7c;--dut:#c8641e;--ship:#6b5a3e;--place:#5f7f5a;--source:#8a8f93;--question:#9b2f4a;--event:#4b3f72;
+ --display:"IM Fell English",Georgia,serif;--body:"Source Serif 4",Georgia,serif;--mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+ color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+ --bg:#14191c;--panel:#1c2327;--fg:#e4e8e6;--muted:#9aa5a9;--rule:#2e383d;--focus:#6fb7ef;--edge:#7d898f;--ok:#7cc488;--warn:#e3809a;
+ --eng:#7fb0d3;--dut:#f0965a;--ship:#c9b48a;--place:#9cc394;--source:#9aa1a5;--question:#e3809a;--event:#ab9ee0;color-scheme:dark}}
+:root[data-theme="dark"]{
+ --bg:#14191c;--panel:#1c2327;--fg:#e4e8e6;--muted:#9aa5a9;--rule:#2e383d;--focus:#6fb7ef;--edge:#7d898f;--ok:#7cc488;--warn:#e3809a;
+ --eng:#7fb0d3;--dut:#f0965a;--ship:#c9b48a;--place:#9cc394;--source:#9aa1a5;--question:#e3809a;--event:#ab9ee0;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}  /* a hidden tab stays hidden, whatever its own display */
+html{overflow-x:hidden}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--body);font-size:16px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding:24px 16px 48px;display:grid;gap:22px}
+.eyebrow,.kind,.meta,.rel,.pill,.badge,code,.mono{font-family:var(--mono)}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+h1{font-family:var(--display);font-weight:400;font-size:clamp(28px,5vw,44px);line-height:1.1;margin:0}
+h2{font-family:var(--display);font-weight:400;font-size:24px;margin:0 0 6px}
+h3{font-family:var(--display);font-weight:400;font-size:20px;margin:0}
+p{margin:0}
+a{color:var(--focus)}
+.note,.small{font-size:14px}.note{color:var(--muted)}
+.topbar{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.status{font-family:var(--mono);font-size:12.5px}.status.err{color:var(--warn)}
+button,.btn{font-family:var(--mono);font-size:12.5px;border:1px solid var(--rule);background:var(--panel);color:var(--fg);border-radius:999px;padding:5px 12px;cursor:pointer;text-decoration:none;display:inline-flex;gap:6px;align-items:center}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+button:focus-visible,summary:focus-visible,a:focus-visible,.node:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.tabs{position:sticky;top:0;z-index:6;background:var(--bg);display:flex;flex-wrap:wrap;gap:6px;padding-top:8px;border-bottom:2px solid var(--fg)}
+.tabs button{border-radius:6px 6px 0 0;border-bottom:0;font-size:14px;letter-spacing:.05em;text-transform:uppercase;padding:9px 16px}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tabs .n{font-size:11px}
+.panel{display:grid;gap:22px;min-width:0}
+.box{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:14px 16px;display:grid;gap:8px;min-width:0}
+details>summary{cursor:pointer}
+.prose{max-width:80ch;display:grid;gap:8px}
+.prose table{border-collapse:collapse;font-size:14px}.prose td,.prose th{border:1px solid var(--rule);padding:6px 8px;vertical-align:top;text-align:left}
+.twrap{overflow-x:auto;max-width:100%}
+/* Extra tabs (Two Readings): tables use the page's width, text keeps 80ch; header cells can be dragged wider (Chrome, Edge) */
+.prose.wide{max-width:none}
+.prose.wide>p,.prose.wide>ul,.prose.wide>ol,.prose.wide>h2,.prose.wide>h3,.prose.wide>h4,.prose.wide>details{max-width:80ch}
+.prose.wide th{resize:horizontal;overflow:auto;min-width:6ch}
+/* the network */
+.bench{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+@media (max-width:900px){.bench{grid-template-columns:minmax(0,1fr)}}
+/* As in ML-088: the network and the evidence panel are each resized by dragging their bottom-right corner, using the window's full width */
+html{overflow-x:hidden}
+.bench{display:flex;gap:20px;align-items:flex-start;justify-content:center;width:100vw;margin-left:calc(50% - 50vw);padding:0 16px 10px;box-sizing:border-box;overflow-x:auto}
+.bench>.chart,.bench>.evi{flex:none}
+.bench>.chart{width:820px;resize:both;overflow:auto;min-width:360px;box-sizing:border-box}
+.bench>.evi{width:360px;height:760px;max-height:none;resize:both;min-width:260px;min-height:300px;box-sizing:border-box}
+@media (max-width:900px){.bench{flex-wrap:wrap;width:auto;margin-left:0;padding:0}.bench>.chart,.bench>.evi{width:100%}.bench>.evi{height:520px}}
+.chart{background:var(--panel);border:1px solid var(--rule);border-radius:6px;overflow:hidden;min-width:0}
+.toolbar{display:flex;flex-wrap:wrap;gap:6px;padding:10px;border-bottom:1px solid var(--rule)}
+.toolbar button[aria-pressed="false"]{opacity:.45}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+svg#g{display:block;width:100%;height:auto;touch-action:none}
+.lbl{font-size:11px;fill:var(--fg);pointer-events:none;paint-order:stroke;stroke:var(--panel);stroke-width:3px;stroke-linejoin:round}
+.lbl.small{font-size:9.5px;fill:var(--muted)}
+.node{cursor:pointer}
+.keyrow{display:flex;flex-wrap:wrap;gap:14px;padding:8px 12px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--muted)}
+.keyrow svg{width:34px;height:10px;display:inline-block;vertical-align:middle}
+.evi{background:var(--panel);border:1px solid var(--rule);border-radius:6px;padding:16px;display:grid;gap:12px;min-width:0;max-height:760px;overflow:auto}
+.alias{font-size:13px;color:var(--muted);font-style:italic}
+ul.links{list-style:none;padding:0;margin:0;display:grid;gap:10px}
+ul.links li{border-top:1px solid var(--rule);padding-top:8px;display:grid;gap:3px}
+.rel{font-size:12px;color:var(--muted)}
+.other{background:none;border:0;padding:0;font:inherit;font-weight:600;text-align:left;border-radius:0;text-decoration:underline;text-decoration-color:var(--rule);text-underline-offset:3px}
+.ref{font-family:var(--mono);font-size:12px}.gh{font-size:11px;opacity:.8}
+.pill{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;border-radius:999px;padding:1px 7px;border:1px solid currentColor;justify-self:start}
+.pill.strong{color:var(--place)}.pill.moderate{color:var(--dut)}.pill.weak{color:var(--question)}
+.basis{font-size:13px;color:var(--muted)}
+.badge{font-size:10.5px;border:1.5px solid var(--pc,var(--edge));color:var(--pc,var(--edge));border-radius:4px;padding:0 4px;font-weight:500;white-space:nowrap}
+.ann{border-left:4px solid var(--pc,var(--edge));padding:4px 0 4px 10px;display:grid;gap:3px}
+.ann.withdrawn .txt{text-decoration:line-through;opacity:.6}
+.meta{font-size:11.5px;color:var(--muted)}
+ol.q,ol.nb{margin:0;padding-left:1.2em;display:grid;gap:10px;max-width:80ch}
+ol.nb{list-style:none;padding:0}
+/* the Hopper */
+.where{display:grid;gap:8px}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-family:var(--mono);font-size:12.5px}
+.flow .st{border:1px solid var(--rule);border-radius:6px;padding:6px 10px;background:var(--panel)}
+.flow .st b{font-size:16px}
+.flow .gt{color:var(--muted)}
+ul.todo{margin:0;padding-left:1.2em;font-size:14.5px;display:grid;gap:4px}
+.stage{display:grid;gap:10px;min-width:0}
+.stage>h3{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--rule);display:flex;gap:10px;flex-wrap:wrap;align-items:baseline}
+.stage>h3 .n{color:var(--fg)}
+.empty{font-size:14px;color:var(--muted);font-style:italic}
+.hop{border-left:4px solid var(--pc,var(--edge));padding:2px 0 2px 12px;min-width:0;scroll-margin-top:90px}
+.hop>details>summary{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;font-family:var(--mono);font-size:13px;list-style:none}
+.hop>details>summary::-webkit-details-marker{display:none}
+.hop>details>summary::before{content:"▸";color:var(--muted)}.hop>details[open]>summary::before{content:"▾"}
+.hid{font-weight:600;font-size:14px}.hkind{color:var(--fg)}.hent,.hcm{color:var(--muted)}
+.hwait{color:var(--dut)}.hwait.ready{color:var(--ok);font-weight:600}
+.hbody{display:grid;gap:8px;padding:8px 0 4px}
+.words{font-size:15.5px;max-width:80ch}
+.hbody details{font-size:14px}
+.hbody details>div{padding:4px 0 4px 12px;display:grid;gap:4px}
+.ptext{white-space:pre-wrap;font-size:14px;border-left:2px solid var(--rule);padding-left:10px}
+.excerpt{border-left:3px solid var(--place);padding-left:8px;font-size:14px}
+.cm .txt{white-space:pre-line;font-size:14px}
+.hacts{display:flex;flex-wrap:wrap;gap:6px}
+.dec{border:1px dashed var(--rule);border-radius:6px;padding:8px 10px;display:grid;gap:6px;font-size:14px}
+.drow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tbox{border-color:var(--pc,var(--edge))}.tbox.on{background:var(--pc,var(--edge));color:var(--bg)}
+.tbox .bx{display:inline-grid;place-items:center;width:15px;height:15px;border:1.5px solid currentColor;border-radius:3px;font-size:11px}
+.agree.go{background:var(--ok);border-color:var(--ok);color:#fff}
+.dsw button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+.dmsg{font-family:var(--mono);font-size:12px;color:var(--warn)}
+input.mwords{font:inherit;font-size:13px;padding:3px 6px;border:1px solid var(--rule);border-radius:4px;background:var(--bg);color:var(--fg);max-width:220px}
+.gate1note{font-size:14px;color:var(--muted)}
+/* forms */
+form.f{background:var(--panel);border:2px dashed var(--dut);border-radius:6px;padding:12px 14px;display:grid;gap:10px;max-width:80ch}
+form.f label{font-family:var(--mono);font-size:12px;color:var(--muted);display:grid;gap:4px;min-width:0}
+form.f input[type=text],form.f select,form.f textarea{width:100%;font:inherit;font-size:15px;padding:6px;border:1px solid var(--rule);border-radius:4px;background:var(--bg);color:var(--fg)}
+form.f textarea{min-height:5em}
+form.f .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+form.f .fmsg{font-family:var(--mono);font-size:12.5px;color:var(--warn)}
+table.crit{border-collapse:collapse;font-size:13.5px;width:100%}
+table.crit td{border-top:1px solid var(--rule);padding:4px 6px;vertical-align:top}
+table.crit select{width:auto!important}
+table.sc{border-collapse:collapse;font-size:13.5px;min-width:820px;background:var(--panel)}
+table.sc th,table.sc td{border:1px solid var(--rule);padding:5px 7px;text-align:center;vertical-align:top}
+table.sc .l{text-align:left}
+table.sc thead th{font-family:var(--mono);font-size:11px;color:var(--muted);font-weight:500}
+abbr.svc{text-decoration:underline dotted;text-underline-offset:3px;cursor:help}
+.svtip{position:fixed;z-index:20;max-width:min(320px,calc(100vw - 32px));background:var(--fg);color:var(--bg);font-size:13px;line-height:1.4;padding:8px 10px;border-radius:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <header style="display:grid;gap:8px;max-width:80ch">
+  <div class="eyebrow" id="eyebrow">Knowledge graph</div>
+  <h1 id="title">Knowledge graph</h1>
+  <div class="topbar"><span id="who">Loading…</span><a class="btn" href="/api/graph/export" title="Download the whole graph, with every item and entry, as one JSON file">Export all</a><a class="btn" href="/deed_reader.html">Deed Reader</a><span class="status" id="status" role="status"></span></div>
+ </header>
+ <nav class="tabs" role="tablist" aria-label="Views" id="tabs"></nav>
+ <details class="box" id="aboutbox" hidden><summary><b>What this page is</b></summary><div class="prose" id="about"></div></details>
+
+ <section class="panel" id="p-graph" role="tabpanel">
+  <div class="bench">
+   <div class="chart">
+    <div class="toolbar" id="filters" aria-label="Show or hide kinds of entity"></div>
+    <svg id="g" viewBox="0 0 900 680" role="img" aria-label="The network"></svg>
+    <div class="keyrow">
+     <span><svg viewBox="0 0 34 10"><line x1="0" y1="5" x2="34" y2="5" stroke="currentColor" stroke-width="2"/></svg> strong</span>
+     <span><svg viewBox="0 0 34 10"><line x1="0" y1="5" x2="34" y2="5" stroke="currentColor" stroke-width="2" stroke-dasharray="6 4"/></svg> moderate</span>
+     <span><svg viewBox="0 0 34 10"><line x1="0" y1="5" x2="34" y2="5" stroke="currentColor" stroke-width="2" stroke-dasharray="1.5 4"/></svg> weak</span>
+     <span>coloured link or ring = added by a contributor</span><span>square = ship · circle = person · diamond = open question</span>
+     <span>drag to pan; scroll or pinch to zoom; drag a circle to move it</span>
+    </div>
+   </div>
+   <aside class="evi" id="evi" aria-live="polite"></aside>
+  </div>
+  <section style="display:grid;gap:10px"><h2>Notebook: every note, newest first</h2><ol class="nb" id="nb"></ol></section>
+  <section style="display:grid;gap:10px"><h2>Open questions</h2><ol class="q" id="qs"></ol></section>
+  <div class="prose" id="graphextra"></div>
+ </section>
+
+ <section class="panel" id="p-hopper" role="tabpanel" hidden>
+  <div class="box prose" id="hopintro"><h2>The Hopper: everything enters here first</h2>
+   <p>Every candidate (a link, a source lead, a correction, an identity) enters the Hopper in its proposer's words, signed and dated. It reaches the graph only through two gates. Nothing is changed or deleted: a revision, a comment, a score or a decision is added beside the item, and a set-aside item stays, with its reason.</p></div>
+  <div class="box" id="gaterules"></div>
+  <section class="box where" id="where" aria-label="Where are we?"><p class="note">Counting…</p></section>
+  <div id="addhost"></div>
+  <div id="scores"></div>
+  <div class="prose" id="criteria"></div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><h2 style="margin:0">The Hopper's contents</h2><button type="button" id="openall">Open every item</button></div>
+  <div class="stagelist" id="stages" style="display:grid;gap:24px;max-width:84ch"></div>
+ </section>
+ <div id="extrapanels"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script>
+"use strict";
+/* ---------- shared ---------- */
+const BASIS={"P-H":"primary text read in full, transcribed by hand from the ink","P-MHC":"primary text read in full, machine text hand-corrected","P-MUC":"primary text read in full, machine text uncorrected",P:"primary text read in full (how the text was made not stated)",D:"dictionary entry read in full",S:"secondary work read in full",Q:"primary text as quoted in a secondary work",X:"text pasted by the researcher",A:"abstract or catalogue description only",B:"bibliographic record only",N:"search snippet or summary: a lead, not evidence",R:"recollection",I:"inference"};
+const STAGE_ORDER=["in","gate1","approved","aside"];
+const EMPTY={in:"Nothing waiting.",gate1:"Nothing yet. An item moves here when it passes Gate 1.",approved:"Nothing yet. An item moves here when it passes Gate 2.",aside:"Nothing set aside."};
+const S={c:null,people:{},me:null,state:null,sig:"",open:null,openCard:{},openDet:{},words:{},dto:{},dmsg:{},busy:false,dirty:false};
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+const sq=s=>String(s||"").replace(/\s+/g," ").trim();
+function fmtT(t){if(!t)return"";const d=new Date(t);return isNaN(d)?String(t):d.toLocaleString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}
+function person(id){return S.people[id]||{id,name:id==="rule"?"the rule":String(id||"?")}}
+function pnm(id){return id==="rule"?"Rule":String(person(id).name||id).split(/[ (]/)[0]}
+function pcol(id){const p=person(id);const dark=matchMedia("(prefers-color-scheme: dark)").matches&&document.documentElement.dataset.theme!=="light"||document.documentElement.dataset.theme==="dark";return (dark&&p.color_dark)||p.color||"var(--edge)"}
+function badge(id){const p=person(id);return p.badge?`<span class="badge" style="--pc:${esc(pcol(id))}">${esc(p.badge)}</span> `:""}
+function setStatus(t,err){const s=document.getElementById("status");s.textContent=t||"";s.classList.toggle("err",!!err)}
+async function api(path,body){
+ const r=await fetch(path,body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body),credentials:"same-origin"}:{cache:"no-store",credentials:"same-origin"});
+ let j=null;try{j=await r.json()}catch(e){}
+ if(!r.ok)throw Object.assign(new Error((j&&j.error)||("the server answered "+r.status)),{status:r.status});
+ return j}
+/* MarineLives folio references become links; [text] opens the volume's full text when the content file names it */
+function refLinks(raw){
+ const s=esc(raw), gh=(S.c&&S.c.content.gh_texts)||{};
+ return s.replace(/(HCA\s*)?13\/(\d+)((?:\s*(?:ff?\.)?\s*\d+[rv](?:\s*[–-]\s*\d+[rv])?\s*,?)+)/g,(m,pre,vol,tail)=>{
+  const out=tail.replace(/(\d+[rv])/g,f=>`<a href="https://www.marinelives.org/wiki/HCA_13/${vol}_f.${f}_Annotate" target="_blank" rel="noopener" title="Open HCA 13/${vol} f.${f} on the MarineLives wiki">${f}</a>`);
+  const g=gh[vol]?` <a class="gh" href="https://github.com/Addaci/HCA/blob/main/${encodeURIComponent(gh[vol])}" target="_blank" rel="noopener" title="Open the full text of HCA 13/${vol}">[text]</a>`:"";
+  return `${pre||""}13/${vol}${out}${g}`})}
+
+/* ---------- tabs ---------- */
+function buildTabs(){
+ const extra=(S.c.content.panels||[]);
+ const T=[["graph","Graph"],["hopper","Hopper <span class='n' id='hopn'></span>"]].concat(extra.map(p=>[p.id,esc(p.label)]));
+ const host=document.getElementById("extrapanels");
+ host.innerHTML=extra.map(p=>`<section class="panel" id="p-${esc(p.id)}" role="tabpanel" hidden><div class="prose wide">${p.html||""}</div></section>`).join("");
+ const nav=document.getElementById("tabs");
+ nav.innerHTML=T.map(([id,l])=>`<button type="button" role="tab" id="t-${esc(id)}" data-tab="${esc(id)}" aria-selected="false">${l}</button>`).join("");
+ const ids=T.map(t=>t[0]);
+ function show(t){if(!ids.includes(t))t="graph";ids.forEach(x=>{document.getElementById("p-"+x).hidden=x!==t;document.getElementById("t-"+x).setAttribute("aria-selected",x===t)})}
+ nav.addEventListener("click",e=>{const b=e.target.closest("[data-tab]");if(b){show(b.dataset.tab);try{history.replaceState(null,"","#"+b.dataset.tab)}catch(x){}}});
+ window.addEventListener("hashchange",()=>{const h=location.hash.slice(1);if(ids.includes(h))show(h)});  /* #hop-… links stay on their tab */
+ show(location.hash.slice(1))}
+
+/* ---------- the network (from the content file; read only) ---------- */
+function buildGraph(){
+ const C=S.c.content, G=C.graph||{nodes:[],edges:[]};
+ const GROUPS=(C.groups&&C.groups.length?C.groups:[["Person","People","var(--eng)"],["Ship","Ships","var(--ship)"],["Place","Places","var(--place)"],["Event","Events","var(--event)"],["Source","Sources","var(--source)"],["Open Question","Open questions","var(--question)"]]);
+ const gcol=g=>{const x=GROUPS.find(r=>r[0]===g);return x?x[2]:"var(--edge)"};
+ const nodes=(G.nodes||[]).map(n=>Object.assign({},n,{group:n.group||n.type}));
+ const byId=Object.fromEntries(nodes.map(n=>[n.id,n]));
+ const links=(G.edges||[]).filter(e=>byId[e.source]&&byId[e.target]).map(e=>Object.assign({},e));
+ const sides=C.sides||{};
+ const shown=new Set(GROUPS.map(g=>g[0]).filter(g=>!(C.hidden_groups||["Source"]).includes(g)));
+ const NOTES=(G.annotations||[]).slice();
+ const edgeCol=l=>l.contributed_by?pcol(l.contributed_by):"var(--edge)";
+ let W=900,H=680;
+ const svg=d3.select("#g"),root=svg.append("g");
+ svg.call(d3.zoom().scaleExtent([0.5,4]).on("zoom",ev=>root.attr("transform",ev.transform)));
+ const radius=d=>d.type==="Person"?9:d.type==="Ship"?8:d.type==="Open Question"?7:6;
+ const sim=d3.forceSimulation(nodes).force("link",d3.forceLink(links).id(d=>d.id).distance(60).strength(.5))
+  .force("charge",d3.forceManyBody().strength(-260)).force("x",d3.forceX(d=>W*(sides[d.group]??.5)).strength(.08))
+  .force("y",d3.forceY(H/2).strength(.06)).force("collide",d3.forceCollide(d=>radius(d)+16)).stop();
+ const linkSel=root.append("g").selectAll("line").data(links).join("line").attr("stroke",edgeCol).attr("stroke-opacity",.7)
+  .attr("stroke-width",d=>d.contributed_by?2.4:1.3).attr("stroke-dasharray",d=>d.confidence==="moderate"?"6 4":d.confidence==="weak"?"1.5 4":null);
+ const nodeSel=root.append("g").selectAll("g").data(nodes).join("g").attr("class","node").attr("tabindex",0).attr("role","button")
+  .attr("aria-label",d=>`${d.label} (${d.group})`).on("click",(ev,d)=>select(d.id))
+  .on("keydown",(ev,d)=>{if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();select(d.id)}});
+ nodeSel.each(function(d){const g=d3.select(this),r=radius(d),c=gcol(d.group);
+  if(d.type==="Ship")g.append("rect").attr("x",-r).attr("y",-r).attr("width",2*r).attr("height",2*r).attr("rx",2).attr("fill",c).attr("stroke","var(--panel)").attr("stroke-width",1.5);
+  else if(d.type==="Open Question")g.append("rect").attr("x",-r).attr("y",-r).attr("width",2*r).attr("height",2*r).attr("transform","rotate(45)").attr("fill",c).attr("stroke","var(--panel)").attr("stroke-width",1.5);
+  else g.append("circle").attr("r",r).attr("fill",c).attr("stroke","var(--panel)").attr("stroke-width",1.5);
+  if(d.contributed_by)g.append("circle").attr("r",r+3.5).attr("fill","none").attr("stroke",pcol(d.contributed_by)).attr("stroke-width",2.2);
+  const short=d.short||(d.type==="Open Question"?"?":d.type==="Source"?String(d.label).split(":")[0]:d.label);
+  g.append("text").attr("class","lbl"+((d.type==="Source"||d.type==="Place"||d.type==="Event")?" small":"")).attr("x",r+4).attr("y",4).text(short)});
+ const redraw=()=>{linkSel.attr("x1",d=>d.source.x).attr("y1",d=>d.source.y).attr("x2",d=>d.target.x).attr("y2",d=>d.target.y);nodeSel.attr("transform",d=>`translate(${d.x},${d.y})`)};
+ const pinned=new Set();
+ function layout(){const ch=document.querySelector(".chart");W=Math.max(480,Math.round(ch.clientWidth-2));svg.attr("viewBox",`0 0 ${W} ${H}`);
+  sim.force("x",d3.forceX(d=>W*(sides[d.group]??.5)).strength(.08));sim.alpha(1);
+  for(let i=0;i<500;i++){sim.tick();nodes.forEach(n=>{if(!pinned.has(n.id)){n.x=Math.max(24,Math.min(W-150,n.x));n.y=Math.max(24,Math.min(H-24,n.y))}})}redraw()}
+ nodeSel.call(d3.drag().on("start",ev=>{ev.sourceEvent&&ev.sourceEvent.stopPropagation()}).on("drag",(ev,d)=>{d.x=ev.x;d.y=ev.y;pinned.add(d.id);redraw()}));
+ layout();
+ const fbar=d3.select("#filters");
+ const applyFilter=()=>{nodeSel.attr("display",d=>shown.has(d.group)?null:"none");linkSel.attr("display",d=>shown.has(d.source.group)&&shown.has(d.target.group)?null:"none")};
+ GROUPS.forEach(([g,label])=>fbar.append("button").attr("type","button").attr("data-g",g).attr("aria-pressed",shown.has(g)).attr("title","Show or hide: "+label)
+  .html(`<span class="dot" style="background:${esc(gcol(g))}"></span>${esc(label)}`)
+  .on("click",function(){shown.has(g)?shown.delete(g):shown.add(g);d3.select(this).attr("aria-pressed",shown.has(g));applyFilter()}));
+ fbar.append("button").attr("type","button").text("Show whole network").on("click",overview);
+ applyFilter();
+ const evi=document.getElementById("evi");
+ function annHTML(a,withTarget){const t=byId[a.target&&a.target.id];
+  return `<div class="ann ${a.status==="withdrawn"?"withdrawn":""}" style="--pc:${esc(pcol(a.contributed_by))}"><div class="meta">${badge(a.contributed_by)}${esc(person(a.contributed_by).name)}${a.author_name?" ("+esc(a.author_name)+")":""} · ${esc(a.kind||"note")} · ${esc(fmtT(a.created))}${a.status?" · "+esc(a.status):""}${withTarget&&t?` · on <button class="other" data-id="${esc(t.id)}">${esc(t.label)}</button>`:""}</div><div class="txt small">${refLinks(a.text)}</div></div>`}
+ function bindOthers(el){el.querySelectorAll(".other[data-id]").forEach(b=>b.addEventListener("click",()=>{const t=byId[b.dataset.id];if(t&&!shown.has(t.group)){shown.add(t.group);document.querySelectorAll("#filters [data-g]").forEach(x=>x.setAttribute("aria-pressed",shown.has(x.dataset.g)));applyFilter()}select(b.dataset.id)}))}
+ function select(id){const n=byId[id];if(!n)return;
+  const near=d=>d.id===id||links.some(l=>(l.source.id===id&&l.target.id===d.id)||(l.target.id===id&&l.source.id===d.id));
+  nodeSel.attr("opacity",d=>near(d)?1:.25);linkSel.attr("stroke-opacity",l=>l.source.id===id||l.target.id===id?1:.12).attr("stroke",l=>l.source.id===id||l.target.id===id?"var(--fg)":edgeCol(l));
+  const mine=links.filter(l=>l.source.id===id||l.target.id===id), P=n.properties||{};
+  const notes=NOTES.filter(a=>a.target&&a.target.id===id).sort((x,y)=>String(y.created||"").localeCompare(String(x.created||"")));
+  evi.innerHTML=`<div class="kind" style="color:${esc(gcol(n.group))}">${esc((GROUPS.find(g=>g[0]===n.group)||[0,n.group])[1])}</div><h3>${esc(n.label)}</h3>
+   ${n.aliases?`<div class="alias">Also: ${n.aliases.map(esc).join("; ")}</div>`:""}
+   ${n.description?`<p class="small">${refLinks(n.description)}</p>`:""}
+   ${P.profile?`<p class="small"><b>Profile.</b> ${refLinks(P.profile)}</p>`:""}
+   ${n.contributed_by?`<p class="small">${badge(n.contributed_by)}Added by ${esc(person(n.contributed_by).name)}</p>`:""}
+   ${notes.length?`<div style="display:grid;gap:8px"><div class="kind">Notes</div>${notes.map(a=>annHTML(a,false)).join("")}</div>`:""}
+   ${P.hca_appearances?`<p class="basis">Appearances: ${refLinks(P.hca_appearances)}</p>`:""}
+   ${P.wiki_biography?`<p class="basis"><a href="${esc(P.wiki_biography)}" target="_blank" rel="noopener">MarineLives biography</a></p>`:""}
+   ${n.status?`<p class="small"><b>Status:</b> ${esc(n.status)}${n.leads?". <b>Leads:</b> "+esc(n.leads):""}</p>`:""}
+   <ul class="links">${mine.map(l=>{const out=l.source.id===id,o=out?l.target:l.source,LP=l.properties||{};
+    return `<li><span class="rel">${out?"":"← "}${esc(String(l.type||"").replace(/_/g," "))}${out?" →":""}</span><button class="other" data-id="${esc(o.id)}">${esc(o.label)}</button>
+    ${l.description?`<span class="small">${refLinks(l.description)}</span>`:""}${LP.reference?`<span class="ref">${refLinks(LP.reference)}${LP.date?" · "+esc(LP.date):""}</span>`:""}
+    ${l.confidence?`<span class="pill ${esc(l.confidence)}">${esc(l.confidence)}</span>`:""}${l.confidence_basis?`<span class="basis">${esc(l.confidence_basis)}</span>`:""}</li>`}).join("")}</ul>`;
+  bindOthers(evi)}
+ function overview(){nodeSel.attr("opacity",1);linkSel.attr("stroke-opacity",.7).attr("stroke",edgeCol);
+  const st=(C.start||[]).filter(([id])=>byId[id]);
+  evi.innerHTML=`<div class="kind">Where to start</div><h3>${esc(C.start_title||"The network")}</h3><p class="small">${esc(C.start_text||"Click anything in the network to see what the sources say about it.")}</p>
+   <ul class="links">${st.map(([id,l])=>`<li><button class="other" data-id="${esc(id)}">${esc(l)}</button><span class="small">${refLinks(byId[id].description)}</span></li>`).join("")}</ul>`;bindOthers(evi)}
+ overview();
+ document.getElementById("qs").innerHTML=nodes.filter(n=>n.type==="Open Question").map(q=>`<li><b>${esc(q.label)}</b> <span class="note">${esc(q.description)}${q.leads?" Leads: "+esc(q.leads)+".":""}</span></li>`).join("")||`<li class="empty">None yet.</li>`;
+ const nb=document.getElementById("nb");
+ nb.innerHTML=NOTES.slice().sort((x,y)=>String(y.created||"").localeCompare(String(x.created||""))).map(a=>`<li>${annHTML(a,true)}</li>`).join("")||`<li class="empty">No notes yet.</li>`;
+ nb.parentElement.hidden=!NOTES.length;  // the Notebook shows only when the content file holds notes (agreed 28 Nov 2026)
+ bindOthers(nb);
+ if(window.ResizeObserver){let t=null,last=0;new ResizeObserver(()=>{const w=Math.round(document.querySelector(".chart").clientWidth);if(Math.abs(w-last)<8)return;last=w;clearTimeout(t);t=setTimeout(layout,250)}).observe(document.querySelector(".chart"))}
+}
+
+/* ---------- the Hopper ---------- */
+const canAdd=()=>S.me&&S.me.role==="author";
+const isRec=()=>S.me&&S.me.recorder;
+function entriesFor(id){return S.state.entries.filter(e=>e.item===id).sort((a,b)=>String(a.at||"").localeCompare(String(b.at||"")))}
+function fold(it){const es=entriesFor(it.id);let words=it.words;const revs=[],ex=[],cms=[],scores=[];
+ (it.notes||[]).forEach(n=>cms.push({by:n.by,at:n.at||n.created,text:n.text,entered_by:n.entered_by}));
+ for(const e of es){if(e.type==="revise"&&e.words){revs.push({at:e.at,by:e.by,prev:words,why:e.why,entered_by:e.entered_by});words=e.words}
+  else if(e.type==="comment"&&e.text)cms.push(e);else if(e.type==="excerpt"&&e.quote)ex.push(e);else if(e.type==="score")scores.push(e)}
+ return Object.assign({},it,{words,revs,ex,cms,scores})}
+function stageLbl(k){return (S.c.stages||{})[k]||k}
+function tgtLbl(k){return {gate1:"Gate 1",approved:"Gate 2",aside:"Set aside",in:"Back to In"}[k]||k}
+
+function whereHTML(all){
+ const n=k=>all.filter(h=>h.stage===k).length, dec=S.state.deciders||[];
+ const unscored=all.filter(h=>h.stage==="in"&&!h.score), ready=all.filter(h=>h.ready), waiting=all.filter(h=>!h.ready&&Object.keys(h.ticks||{}).length);
+ const moves=all.flatMap(h=>h.history.filter(x=>/^(moved|passed|pulled)/.test(x.what)).map(x=>Object.assign({id:h.id},x))).sort((a,b)=>String(b.at||"").localeCompare(String(a.at||"")));
+ const g1=S.state.gate1==="rule"?`rule ${esc(S.state.rule)}`:"held";
+ const todo=[];
+ if(unscored.length)todo.push(`${unscored.length} item${unscored.length>1?"s":""} at In with no score yet: ${unscored.map(h=>`<a href="#hop-${esc(h.id)}" data-go="${esc(h.id)}">${esc(h.id)}</a>`).join(", ")}`);
+ ready.forEach(h=>todo.push(`<a href="#hop-${esc(h.id)}" data-go="${esc(h.id)}">${esc(h.id)}</a>: both Gate 2 ticks name ${esc(tgtLbl(h.ready))}; ${isRec()?"confirm with the green button":"waiting for the recorder to confirm"}`));
+ waiting.forEach(h=>todo.push(`<a href="#hop-${esc(h.id)}" data-go="${esc(h.id)}">${esc(h.id)}</a>: ${Object.entries(h.ticks).map(([d,t])=>esc(pnm(d))+" ✓ "+esc(tgtLbl(t.to))).join("; ")}; waiting for ${esc(dec.filter(d=>!(h.ticks||{})[d]).map(pnm).join(" and ")||"agreement")}`));
+ return `<h2>Where are we?</h2>
+ <div class="flow" role="group" aria-label="Items by stage"><span class="st">In <b>${n("in")}</b></span><span class="gt">→ Gate 1 (${g1}) →</span><span class="st">Active consideration <b>${n("gate1")}</b></span><span class="gt">→ Gate 2 (${esc(dec.map(pnm).join(" and "))}) →</span><span class="st">Approved <b>${n("approved")}</b></span><span class="st">Set aside <b>${n("aside")}</b></span></div>
+ ${todo.length?`<ul class="todo">${todo.map(t=>`<li>${t}</li>`).join("")}</ul>`:`<p class="note">Nothing waiting on anyone.</p>`}
+ <p class="note">${all.length} items, ${S.state.entries.length} entries${S.state.voided?`, ${S.state.voided} set aside as test entries`:""}.${moves[0]?` Last move: ${esc(fmtT(moves[0].at))}, ${esc(moves[0].id)} ${esc(moves[0].what)}.`:""} Counted from the store each time it changes.</p>`}
+
+function gateRulesHTML(){const dec=(S.state.deciders||[]).map(d=>esc(person(d).name));
+ const g1=S.state.gate1==="rule"?`<b>Gate 1 is passed by rule ${esc(S.state.rule)}</b> as soon as an item's latest score qualifies: voyage and organisation items, 12 or more of 18, with criterion 4 at least 1 and criteria 1–4 at least 5; identity, source-lead and database-match items, all three answers yes; context items never. Any author may pull an item back to In, with a reason; the same score does not pass it again.`:`<b>Gate 1 is held:</b> nothing passes it until the rule is switched on again.`;
+ return `<h3>The two gates</h3><p class="small">${g1}</p><p class="small"><b>Gate 2 is decided by ${dec.join(" and ")} together.</b> Each has a box; an item moves only when both boxes name the same stage and the move is confirmed. Gate 2 ticks are recorded only from the gate's recorder's link; a decider without a link says yes aloud on a call and the recorder ticks the box, marked "said aloud".</p>
+ <p class="note">You are <b>${esc(S.me.name)}</b>: ${S.me.role==="author"?"you may add items, comments, revisions, excerpts and scores, and pull an item back from Gate 1":"you may read everything, but not add to it"}${isRec()?"; your link records the Gate 2 ticks":""}.</p>`}
+
+function scoreCells(s){
+ if(s.method==="nine"&&Array.isArray(s.parts))return s.parts.map(p=>`<td><abbr class="svc" tabindex="0" title="${esc((p.criterion||"")+": "+(p.why||""))}">${esc(p.score)}</abbr></td>`).join("")+`<td><b>${esc(s.total)}</b></td><td>${esc(s.floor_sum)}</td>`;
+ return `<td class="l" colspan="11">${(s.answers||[]).map(a=>`<abbr class="svc" tabindex="0" title="${esc("Q"+a.n+" "+(a.question||"")+" "+(a.why||""))}">Q${esc(a.n)} ${esc(a.answer)}</abbr>`).join(" · ")}</td>`}
+function scoresHTML(all){
+ const rows=all.filter(h=>h.scores.length).map(h=>{const s=h.scores[h.scores.length-1];
+  return `<tr><td class="l"><a href="#hop-${esc(h.id)}" data-go="${esc(h.id)}">${esc(h.id)}</a>${s.provisional?"†":""}${h.scores.length>1?` <span class="note">(${h.scores.length} scores)</span>`:""}</td><td class="l">${esc(s.kind)}</td>${scoreCells(s)}<td class="l">${esc(s.reading||"")}</td><td class="l">${esc(pnm(s.by))}</td><td class="l">${esc(stageLbl(h.stage))}</td></tr>`}).join("");
+ if(!rows)return "";
+ return `<div class="box"><h3>Scores: proposals, not the project's verdict</h3><p class="note">The latest score of each item, signed by its scorer. Columns 1–9 are the nine criteria (0, 1 or 2); "1–4" is the first four together. Identity, source-lead and database-match items answer three questions instead. † provisional. Tap a score for the scorer's reason.</p>
+ <div class="twrap"><table class="sc"><thead><tr><th class="l">Item</th><th class="l">Kind</th>${(S.c.criteria||[]).map((c,i)=>`<th title="${esc(c)}">${i+1}</th>`).join("")}<th>Total /18</th><th>1–4 /8</th><th class="l">Reading</th><th class="l">By</th><th class="l">Stage</th></tr></thead><tbody>${rows}</tbody></table></div></div>`}
+
+function detKey(id,k){return id+"|"+k}
+function det(id,k,label,body){const key=detKey(id,k);return `<details data-dk="${esc(key)}"${S.openDet[key]?" open":""}><summary>${label}</summary><div>${body}</div></details>`}
+function decHTML(h){
+ const T=(S.c.next||{})[h.stage]||[];
+ if(h.stage==="in"&&S.state.gate1==="rule"){const s=h.scores[h.scores.length-1];
+  var g1=`<p class="gate1note">Gate 1: ${s?`latest score ${esc(s.method==="nine"?s.total+" of 18, "+s.reading:(s.answers||[]).map(a=>a.answer).join(", "))}, by ${esc(pnm(s.by))}; it does not pass rule ${esc(S.state.rule)}.`:`no score yet; the rule passes the item when a qualifying score is added.`}</p>`}
+ if(!T.length)return g1||"";
+ let to=S.dto[h.id];const live=h.ticks||{},dec=S.state.deciders||[];
+ if(!T.includes(to))to=dec.map(d=>live[d]&&live[d].to).find(t=>T.includes(t))||T[0];
+ const ed=isRec(),dis=ed?"":" disabled";
+ const sw=T.length>1?`<span class="dsw">${T.map(t=>`<button type="button" data-dto="${esc(t)}" data-item="${esc(h.id)}" aria-pressed="${t===to}">${esc(tgtLbl(t))}</button>`).join(" or ")}</span>`:`<b>${esc(tgtLbl(T[0]))}</b>`;
+ const box=d=>{const t=live[d],on=!!(t&&t.to===to),k=h.id+"|"+d;
+  const title=t?`${pnm(d)} ticked ${tgtLbl(t.to)}, ${fmtT(t.at)}${t.via==="spoken"?", said aloud":""}${t.entered_by?", entered by "+t.entered_by:""}${t.quote?": “"+t.quote+"”":""}`:`${pnm(d)} has not ticked`;
+  const other=t&&t.to!==to?` <i>(ticked ${esc(tgtLbl(t.to))})</i>`:"";
+  return `<span style="display:inline-grid;gap:3px"><button type="button" class="tbox${on?" on":""}" data-tbox="${esc(d)}" data-item="${esc(h.id)}" data-to="${esc(to)}" aria-pressed="${on}" style="--pc:${esc(pcol(d))}" title="${esc(title)}"${dis}><span class="bx" aria-hidden="true">${on?"✓":""}</span>${esc(pnm(d))}${other}</button>${on&&t.quote?`<span class="small">“${esc(t.quote)}”</span>`:""}${!on&&ed?`<input type="text" class="mwords" data-mwords="${esc(k)}" placeholder="${esc(pnm(d))}'s words (optional)" value="${esc(S.words[k]||"")}">`:""}</span>`};
+ const both=dec.length&&dec.every(d=>live[d]&&live[d].to===to);
+ return `${g1||""}<div class="dec"><div class="drow"><span class="kind">Gate 2 decision</span>${sw}</div><div class="drow">${dec.map(box).join("")}<button type="button" class="agree${both?" go":""}" data-agree="${esc(h.id)}" data-to="${esc(to)}"${both&&ed?"":" disabled"}>${both?"Agreed: move to "+esc(tgtLbl(to)):"Waiting for both"}</button>${S.dmsg[h.id]?`<span class="dmsg" role="status">${esc(S.dmsg[h.id])}</span>`:""}</div>${ed?"":`<p class="note">Only the recorder's link can tick these boxes.</p>`}</div>`}
+
+function hopCard(h){
+ const col=pcol(h.by), cm=h.cms.length, last=cm?h.cms[cm-1].at:null;
+ const wait=h.ready?`<span class="hwait ready">both ticked for ${esc(tgtLbl(h.ready))}: ready to confirm</span>`:Object.keys(h.ticks||{}).length?`<span class="hwait">${Object.entries(h.ticks).map(([d,t])=>esc(pnm(d))+" ✓ "+esc(tgtLbl(t.to))).join("; ")}</span>`:"";
+ const ev=`<p class="ref">Source: ${refLinks(h.source||"(none given)")}</p>${h.reference?`<p class="ref">Primary text: ${refLinks(h.reference)}</p>`:""}${h.basis?`<p class="small">Basis: <b>${esc(h.basis)}</b>, ${esc(BASIS[h.basis]||"")}</p>`:""}
+  ${h.deed!=null?`<p class="ref">Deed Reader: deed ${esc(h.deed)}${h.scan?", scan "+esc(h.scan):""}${h.line!=null?", line "+esc(h.line):""} · <a href="/deed_reader.html" target="_blank" rel="noopener">open the Deed Reader</a> <span class="note">(find the deed there)</span></p>`:""}
+  ${h.text?`<details><summary>Primary text, as entered (not editable)${h.text_extent?": "+esc(h.text_extent):""}</summary><div class="ptext">${esc(h.text)}</div></details>`:""}
+  ${h.ex.map(e=>`<div class="excerpt">“${esc(e.quote)}”<div class="meta">${esc(e.location||"")} · chosen by ${esc(pnm(e.by))} · ${esc(fmtT(e.at))}</div></div>`).join("")}`;
+ const cms=h.cms.map(c=>`<div class="ann cm" style="--pc:${esc(pcol(c.by))}"><div class="meta">${badge(c.by)}${esc(person(c.by).name)} · ${esc(fmtT(c.at))}${c.entered_by?" · entered by "+esc(c.entered_by):""}</div><div class="txt">${refLinks(c.text)}</div></div>`).join("");
+ const revs=h.revs.map(r=>`<div class="small">${esc(fmtT(r.at))}: revised by ${esc(pnm(r.by))}. ${esc(r.why||"")}<br><span class="note">Before: ${esc(r.prev)}</span></div>`).join("");
+ const scs=h.scores.slice().reverse().map(s=>`<div class="small"><b>${esc(s.kind)}</b>, ${esc(s.method==="nine"?s.total+" of 18 (1–4: "+s.floor_sum+")":(s.answers||[]).map(a=>"Q"+a.n+" "+a.answer).join(", "))}, ${esc(s.reading||"")}; by ${esc(s.scorer||pnm(s.by))}, ${esc(fmtT(s.at))}${s.provisional?", provisional":""}${s.scored_from?". From "+esc(s.scored_from):""}
+   <ul class="small" style="margin:2px 0">${(s.parts||[]).map(p=>`<li>${esc(p.n)} ${esc(p.criterion)}: ${esc(p.score)}${p.why?", "+esc(p.why):""}</li>`).join("")}${(s.answers||[]).map(a=>`<li>Q${esc(a.n)} ${esc(a.question||"")} <b>${esc(a.answer)}</b>${a.why?": "+esc(a.why):""}</li>`).join("")}</ul></div>`).join("");
+ const hist=(h.history||[]).map(x=>`<div class="small">${esc(fmtT(x.at))}: ${esc(x.what)}, by ${esc(pnm(x.by))}. ${esc(x.why||"")}</div>`).join("")||`<div class="small">Entered ${esc(fmtT(h.entered))}; no gate decisions yet.</div>`;
+ const acts=canAdd()?(S.open&&S.open.id===h.id?formHTML(h,S.open.kind):`<div class="hacts"><button type="button" data-open="comment" data-item="${esc(h.id)}">Comment</button><button type="button" data-open="revise" data-item="${esc(h.id)}">Revise wording</button>${h.text?`<button type="button" data-open="excerpt" data-item="${esc(h.id)}">Add excerpt</button>`:""}<button type="button" data-open="score" data-item="${esc(h.id)}">Score</button>${h.stage==="gate1"?`<button type="button" data-open="pullback" data-item="${esc(h.id)}">Pull back to In</button>`:""}</div>`):"";
+ return `<article class="hop" id="hop-${esc(h.id)}" style="--pc:${esc(col)}"><details data-card="${esc(h.id)}"${S.openCard[h.id]?" open":""}>
+  <summary><span class="hid">${esc(h.id)}</span><span class="hkind">${esc(h.kind||h.category||"")}</span><span class="hent">entered ${esc(fmtT(h.entered))}</span>${cm?`<span class="hcm">${cm} comment${cm>1?"s":""}, latest ${esc(fmtT(last))}</span>`:""}${wait}</summary>
+  <div class="hbody"><p class="words">${refLinks(h.words)}</p>
+  <p class="small">Proposed by ${badge(h.by)}${esc(person(h.by).name)}${h.by_note?" ("+esc(h.by_note)+")":""}${h.category?` · <span class="mono">${esc(h.category)}</span>`:""}</p>
+  ${h.next?`<p class="small"><b>Next check:</b> ${refLinks(h.next)}</p>`:""}
+  ${decHTML(h)}
+  ${det(h.id,"ev","Source and evidence"+(h.ex.length?" · "+h.ex.length+" excerpt"+(h.ex.length>1?"s":""):""),ev)}
+  ${cm?det(h.id,"cm",`Comments (${cm})`,cms):""}
+  ${h.scores.length?det(h.id,"sc",`Scores (${h.scores.length})`,scs):""}
+  ${h.revs.length?det(h.id,"rv",`Earlier wording (${h.revs.length})`,revs):""}
+  ${det(h.id,"hi",`Gate history (${(h.history||[]).length})`,hist)}
+  ${acts}</div></details></article>`}
+
+function formHTML(h,kind){
+ const k=S.c.kinds||[], nine=S.c.nine_kinds||[], cat=(h.scores.length?h.scores[h.scores.length-1].kind:null)||h.category||"voyage";
+ const foot=`<div class="row"><button type="submit" class="primary">Save</button><button type="button" data-cancel="1">Cancel</button><span class="fmsg" role="status"></span></div>`;
+ if(kind==="comment")return `<form class="f" data-form="comment" data-item="${esc(h.id)}"><label>Comment on ${esc(h.id)}<textarea name="text" required></textarea></label>${foot}</form>`;
+ if(kind==="revise")return `<form class="f" data-form="revise" data-item="${esc(h.id)}"><label>New wording (the earlier wording stays in the history)<textarea name="words" required>${esc(h.words)}</textarea></label><label>Why<input type="text" name="why" required></label>${foot}</form>`;
+ if(kind==="excerpt")return `<form class="f" data-form="excerpt" data-item="${esc(h.id)}"><label>Excerpt, copied exactly from the primary text<textarea name="quote" required></textarea></label><label>Where (folio, line)<input type="text" name="location"></label>${foot}</form>`;
+ if(kind==="pullback")return `<form class="f" data-form="pullback" data-item="${esc(h.id)}"><label>Why should ${esc(h.id)} go back to In?<textarea name="why" required></textarea></label>${foot}</form>`;
+ if(kind==="score"){const isNine=nine.includes(cat), Q=(S.c.questions||{})[cat]||[];
+  const body=isNine?`<table class="crit">${(S.c.criteria||[]).map((c,i)=>`<tr><td>${i+1} ${esc(c)}</td><td><select name="p${i}" aria-label="${esc(c)}"><option value="">–</option><option>0</option><option>1</option><option>2</option></select></td><td><input type="text" name="w${i}" placeholder="why" aria-label="why, ${esc(c)}"></td></tr>`).join("")}</table><p class="small mono" data-total>Total –</p>`
+   :`<table class="crit">${Q.map((q,i)=>`<tr><td>Q${i+1} ${esc(q)}</td><td><select name="a${i}" aria-label="Q${i+1}"><option value="">–</option>${(S.c.answers||[]).map(a=>`<option>${esc(a)}</option>`).join("")}</select></td><td><input type="text" name="w${i}" placeholder="why" aria-label="why, Q${i+1}"></td></tr>`).join("")}</table>`;
+  return `<form class="f" data-form="score" data-item="${esc(h.id)}"><label>Kind<select name="kind" data-kind="1">${k.map(x=>`<option${x===cat?" selected":""}>${esc(x)}</option>`).join("")}</select></label>${body}
+   <label>Scored from (what you read)<input type="text" name="scored_from"></label><label style="display:flex;gap:6px;align-items:center"><input type="checkbox" name="provisional"> provisional (scored without re-reading the passage)</label>${foot}</form>`}
+ return ""}
+
+function addFormHTML(){
+ if(!canAdd())return "";
+ if(!(S.open&&S.open.kind==="add"))return `<button type="button" data-open="add" data-item="">+ Add an item to the Hopper</button>`;
+ return `<form class="f" data-form="add" data-item=""><h3>Add an item</h3><p class="note">It enters at In, signed by you. It cannot be changed afterwards, only revised, commented on and scored beside it.</p>
+  <label>Category<select name="category">${(S.c.kinds||[]).map(x=>`<option>${esc(x)}</option>`).join("")}</select></label>
+  <label>Short label (optional; for example "candidate link: same voyage?")<input type="text" name="kind"></label>
+  <label>The item, in your words<textarea name="words" required></textarea></label>
+  <label>Source<input type="text" name="source"></label>
+  <label>Reference (for example HCA 13/71 f.628r)<input type="text" name="reference"></label>
+  <div class="row"><label>Deed (Deed Reader number, optional)<input type="text" name="deed" inputmode="numeric"></label><label>Scan (optional; needs a deed)<input type="text" name="scan"></label><label>Line (optional; needs a scan)<input type="text" name="line" inputmode="numeric"></label></div>
+  <label>Primary text (optional; excerpts are checked against it)<textarea name="text"></textarea></label>
+  <label>Extent of the primary text (optional)<input type="text" name="text_extent"></label>
+  <label>Basis<select name="basis"><option value="">(not stated)</option>${(S.c.basis||[]).map(b=>`<option value="${esc(b)}">${esc(b)}: ${esc(BASIS[b]||"")}</option>`).join("")}</select></label>
+  <label>Next check<input type="text" name="next"></label>
+  <div class="row"><button type="submit" class="primary">Add to the Hopper</button><button type="button" data-cancel="1">Cancel</button><span class="fmsg" role="status"></span></div></form>`}
+
+function render(force){
+ if(!S.state)return;
+ if(S.open&&!force){S.dirty=true;setStatus("New changes will show when you close the form.");return}
+ const all=S.state.items.map(fold).sort((a,b)=>String(a.id).localeCompare(String(b.id),undefined,{numeric:true}));
+ document.getElementById("hopn").textContent=all.filter(h=>h.stage==="in"||h.stage==="gate1").length;
+ document.getElementById("gaterules").innerHTML=gateRulesHTML();
+ document.getElementById("where").innerHTML=whereHTML(all);
+ document.getElementById("addhost").innerHTML=addFormHTML();
+ document.getElementById("scores").innerHTML=scoresHTML(all);
+ document.getElementById("stages").innerHTML=STAGE_ORDER.map(k=>{const it=all.filter(h=>h.stage===k);
+  return `<section class="stage"><h3><span>${esc(stageLbl(k))}</span><span class="n">${it.length}</span></h3>${it.length?it.map(hopCard).join(""):`<p class="empty">${esc(EMPTY[k])}</p>`}</section>`}).join("");
+ const f=document.querySelector("form.f [name]");if(f&&S.open)f.focus();
+ S.dirty=false}
+
+async function poll(){
+ try{const st=await api("/api/graph");const sig=JSON.stringify([st.items,st.entries]);S.me=st.me;
+  if(sig!==S.sig||!S.state){S.sig=sig;S.state=st;render(false)}
+  if(!S.open||!S.dirty)setStatus("Up to date "+new Date().toLocaleTimeString("en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"}))}
+ catch(e){setStatus(e.status===401||e.status===403?"This page is not open to you. Open your personal link first.":"The server could not be reached; trying again.",true)}}
+
+async function send(op,obj){if(S.busy)throw new Error("still saving the last change");S.busy=true;
+ try{return await api("/api/graph",{op,[op]:obj})}finally{S.busy=false}}
+function closeForm(){S.open=null;render(true);poll()}
+
+/* clicks, toggles, forms */
+document.addEventListener("toggle",e=>{const d=e.target;if(!d||!d.matches)return;
+ if(d.matches("details[data-card]"))S.openCard[d.dataset.card]=d.open;if(d.matches("details[data-dk]"))S.openDet[d.dataset.dk]=d.open},true);
+document.addEventListener("click",async e=>{
+ const go=e.target.closest("[data-go]");if(go){const id=go.dataset.go;S.openCard[id]=true;const d=document.querySelector(`details[data-card="${CSS.escape(id)}"]`);if(d)d.open=true;return}
+ const o=e.target.closest("[data-open]");if(o){if(S.open)return;S.open={id:o.dataset.item,kind:o.dataset.open};if(o.dataset.item)S.openCard[o.dataset.item]=true;render(true);return}
+ if(e.target.closest("[data-cancel]")){closeForm();return}
+ const s=e.target.closest("[data-dto]");if(s){S.dto[s.dataset.item]=s.dataset.dto;render(true);return}
+ const b=e.target.closest("[data-tbox]");
+ if(b&&isRec()&&!b.disabled){const id=b.dataset.item,d=b.dataset.tbox,to=b.dataset.to,h=S.state.items.find(i=>i.id===id);const cur=(h.ticks||{})[d];
+  const body={item:id,type:"tick",by:d,to:cur&&cur.to===to?null:to};const k=id+"|"+d;if(body.to&&sq(S.words[k]))body.quote=sq(S.words[k]);
+  S.dmsg[id]="Saving…";render(true);try{await send("entry",body);S.dmsg[id]="";S.words[k]=""}catch(x){S.dmsg[id]="Not saved: "+x.message}await poll();render(true);return}
+ const a=e.target.closest("[data-agree]");
+ if(a&&isRec()&&!a.disabled){const id=a.dataset.agree;S.dmsg[id]="Saving…";render(true);try{await send("entry",{item:id,type:"agree",to:a.dataset.to});S.dmsg[id]="";S.dto[id]=undefined}catch(x){S.dmsg[id]="Not saved: "+x.message}await poll();render(true);return}
+ if(e.target.id==="openall"){const ds=[...document.querySelectorAll("details[data-card]")];const op=ds.some(d=>!d.open);ds.forEach(d=>{d.open=op;S.openCard[d.dataset.card]=op});e.target.textContent=op?"Close every item":"Open every item"}
+});
+document.addEventListener("input",e=>{const i=e.target.closest("[data-mwords]");if(i)S.words[i.dataset.mwords]=i.value;
+ const f=e.target.closest("form[data-form=score]");if(f){const t=f.querySelector("[data-total]");if(t){const v=[...Array(9).keys()].map(i=>f.elements["p"+i].value);const n=v.filter(x=>x!=="").map(Number);t.textContent=`Total ${n.reduce((a,b)=>a+b,0)} of 18 · criteria 1–4: ${v.slice(0,4).filter(x=>x!=="").map(Number).reduce((a,b)=>a+b,0)} of 8${n.length<9?` · ${9-n.length} still to score`:""}`}}});
+document.addEventListener("change",e=>{const k=e.target.closest("[data-kind]");if(!k)return;const f=k.closest("form");const id=f.dataset.item;const h=fold(S.state.items.find(i=>i.id===id));
+ const tmp=Object.assign({},h,{scores:[{kind:k.value}],category:k.value});f.outerHTML=formHTML(tmp,"score")});
+document.addEventListener("submit",async e=>{const f=e.target.closest("form[data-form]");if(!f)return;e.preventDefault();
+ const kind=f.dataset.form,id=f.dataset.item,msg=f.querySelector(".fmsg"),v=n=>(f.elements[n]?String(f.elements[n].value||"").trim():"");
+ let op="entry",obj=null;
+ if(kind==="add"){op="item";obj={category:v("category"),kind:v("kind"),words:v("words"),source:v("source"),reference:v("reference"),text:v("text"),text_extent:v("text_extent"),basis:v("basis")||null,next:v("next"),deed:v("deed"),scan:v("scan"),line:v("line")};if(!obj.words){msg.textContent="Write the item.";return}}
+ if(kind==="comment")obj={item:id,type:"comment",text:v("text")};
+ if(kind==="revise"){const h=fold(S.state.items.find(i=>i.id===id));if(sq(v("words"))===sq(h.words)){msg.textContent="The wording has not changed.";return}obj={item:id,type:"revise",words:v("words"),why:v("why")}}
+ if(kind==="excerpt"){const h=S.state.items.find(i=>i.id===id);if(!sq(h.text).includes(sq(v("quote")))){msg.textContent="This does not match the primary text exactly. Copy it from the text.";return}obj={item:id,type:"excerpt",quote:v("quote"),location:v("location")}}
+ if(kind==="pullback")obj={item:id,type:"pullback",why:v("why")};
+ if(kind==="score"){const k=v("kind");obj={item:id,type:"score",kind:k,scored_from:v("scored_from"),provisional:!!f.elements.provisional.checked};
+  if((S.c.nine_kinds||[]).includes(k)){const parts=[...Array(9).keys()].map(i=>({score:v("p"+i)===""?null:Number(v("p"+i)),why:v("w"+i)}));if(parts.some(p=>p.score===null)){msg.textContent="Score all nine criteria.";return}obj.parts=parts}
+  else{const answers=[0,1,2].map(i=>({answer:v("a"+i),why:v("w"+i)}));if(answers.some(a=>!a.answer)){msg.textContent="Answer all three questions.";return}obj.answers=answers}}
+ if(!obj)return;
+ msg.textContent="Saving…";
+ try{const r=await send(op,obj);if(op==="item"){S.openCard[r.added]=true}S.open=null;await poll();render(true);
+  const el=document.getElementById("hop-"+(op==="item"?r.added:id));if(el)el.scrollIntoView({behavior:"smooth",block:"start"})}
+ catch(x){msg.textContent="Not saved: "+x.message}});
+/* tooltips for the scores */
+(()=>{let tip=null;const hide=()=>{if(tip){tip.remove();tip=null}};
+ document.addEventListener("click",e=>{const a=e.target.closest("abbr.svc");hide();if(!a)return;tip=document.createElement("div");tip.className="svtip";tip.textContent=a.title;document.body.appendChild(tip);
+  const r=a.getBoundingClientRect();tip.style.left=Math.max(16,Math.min(r.left,innerWidth-tip.offsetWidth-16))+"px";tip.style.top=(r.bottom+6+tip.offsetHeight>innerHeight?r.top-tip.offsetHeight-6:r.bottom+6)+"px";e.stopPropagation()});
+ document.addEventListener("keydown",e=>{if(e.key==="Escape")hide();if(e.key==="Enter"&&document.activeElement&&document.activeElement.matches("abbr.svc"))document.activeElement.click()});
+ addEventListener("scroll",hide,true)})();
+
+/* ---------- start ---------- */
+(async()=>{
+ try{S.c=await api("/api/graph/content")}catch(e){setStatus(e.status===401||e.status===403?"This page is not open to you. Open your personal link first.":"The server could not be reached. Reload the page.",true);return}
+ S.me=S.c.me;(S.c.people||[]).forEach(p=>{S.people[p.id]=p});
+ const C=S.c.content||{};
+ if(C.title){document.getElementById("title").textContent=C.title;document.title=C.short_title||C.title}
+ if(C.eyebrow)document.getElementById("eyebrow").textContent=C.eyebrow;
+ /* the content file's own texts, made by graph_seed.py from the team's own page */
+ if(C.about_html){document.getElementById("about").innerHTML=C.about_html;document.getElementById("aboutbox").hidden=false}
+ if(C.hopper_intro_html)document.getElementById("hopintro").innerHTML=C.hopper_intro_html;
+ if(C.criteria_html)document.getElementById("criteria").innerHTML=C.criteria_html;
+ if(C.graph_extra_html)document.getElementById("graphextra").innerHTML=C.graph_extra_html;
+ document.getElementById("who").innerHTML=`${badge(S.me.id)}${esc(S.me.name)} · ${S.me.role==="author"?"may add":"may read"}${S.me.recorder?" · records Gate 2":""}`;
+ buildTabs();
+ try{buildGraph()}catch(e){document.getElementById("evi").innerHTML=`<p class="note">The network could not be drawn (${esc(e.message)}).</p>`}
+ await poll();
+ setInterval(poll,5000);
+})();
+</script>
+</body>
+</html>
